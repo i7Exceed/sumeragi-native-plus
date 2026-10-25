@@ -39,8 +39,8 @@ MINGW*|MSYS*)
     cp out/sumeragi-pad-mapper.exe bin/sumeragi-pad-mapper.exe
     cp out/basara4-pad-mapper.exe bin/basara4-pad-mapper.exe
     if [[ -f $msys2_root/clang64/bin/SDL3.dll ]]; then
-        cp "$msys2_root/clang64/bin/SDL3.dll" bin/
-        cp "$msys2_root/clang64/bin/SDL3.dll" out/
+        cmp -s "$msys2_root/clang64/bin/SDL3.dll" bin/SDL3.dll 2>/dev/null || cp "$msys2_root/clang64/bin/SDL3.dll" bin/ 2>/dev/null || true
+        cmp -s "$msys2_root/clang64/bin/SDL3.dll" out/SDL3.dll 2>/dev/null || cp "$msys2_root/clang64/bin/SDL3.dll" out/ 2>/dev/null || true
     fi
     echo "Built $PWD/out/sumeragi-core.exe ($PWD/out/basara4-core.exe) and gamepad mapper"
     if [[ ${1:-} == --test ]]; then
@@ -48,6 +48,8 @@ MINGW*|MSYS*)
         ./out/dlc-runtime-test.exe
         clang -std=c11 -O2 -g -Wall -Wextra -I. -Isrc tests/test_content.c src/runtime_content.c -o out/content-test.exe
         ./out/content-test.exe
+        ninja -C out/gpu pad-map-test
+        PATH="$PWD/bin:$PWD/out/gpu:$PATH" ./out/gpu/pad-map-test.exe
         echo "C tests passed."
     fi
     exit 0

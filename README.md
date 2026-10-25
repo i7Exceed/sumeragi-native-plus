@@ -137,9 +137,44 @@ The launcher provides fine-grained visual and runtime controls:
 - **Upscaling**: Off, or AMD FidelityFX Super Resolution 1 (FSR 1).
 - **Frame Rate Limit**: 60 (default), 90, 120, 144, 165, 240, or Unlimited.
 - **Enhancements**: VSync, RCAS sharpening strength, anisotropic filtering (2x to 16x).
-- **Controller Tools**: Full controller mapping, stick-only mapping, or reset saved bindings.
+- **Controller Tools**: In-game action button remapping (Cross, Circle, Square, L1, etc.), hardware DirectInput mapping, and mapping reset.
 
-Settings are saved automatically to `user\sumeragi.ini` (with automatic migration from legacy `basara4.ini` / `spartanport.ini`).
+Settings are saved automatically to `user\sumeragi.ini` and `user\launcher.json`.
+
+---
+
+## Controller Configuration & Button Remapping
+
+Sumeragi Native+ features a dual-layer controller input pipeline designed for maximum compatibility and player preference:
+
+### 1. Device Hardware Mapping vs. Game Action Remapping
+
+| Layer | Purpose | Configuration File | Used By |
+|---|---|---|---|
+| **Device Hardware Mapping** | Teaches SDL how to interpret generic DirectInput pads so physical buttons match standard layouts (South, East, West, North, Bumpers, etc.). Standard XInput & DualShock/DualSense pads work automatically. | `user/gamepad_mapping.txt` | `sumeragi-pad-mapper.exe` / `SDL_GAMECONTROLLERCONFIG_FILE` |
+| **Game Action Remapping** | Reassigns logical game actions (Cross, Circle, Square, Triangle, L1, R1, L3, R3, Options, D-pad) to your preferred controller inputs (e.g. swapping Cross and Circle). | `user/launcher.json` (`pad_controls`) | `SPARTAN_PAD_MAP` / `runtime_pad.c` |
+
+### 2. How to Remap Game Actions
+1. Open the launcher and click **🎮 Controls** under the *Controller & Utilities* card.
+2. Select your preferred **Button Label Style**:
+   - **PlayStation**: `✕ Cross`, `○ Circle`, `□ Square`, `△ Triangle`, `L1`, `R1`, etc.
+   - **Xbox**: `A`, `B`, `X`, `Y`, `LB`, `RB`, etc.
+   - **Nintendo**: `B`, `A`, `Y`, `X`, `L`, `R`, etc.
+3. Choose a new button for any action via the dropdown menu, or click **🎮 Press Button** to capture physical input directly from your connected controller.
+4. If an input is already bound to another action, the launcher automatically swaps the inputs to prevent duplicate assignments.
+5. Per-action reset buttons and a master **↺ Reset All to Default** button are available.
+6. Click **💾 Save & Apply**. Changes take effect automatically on the next game launch.
+
+### 3. Supported Remappable Actions
+- **Face Buttons**: Cross, Circle, Square, Triangle.
+- **Shoulders / Bumpers**: L1, R1.
+- **Stick Clicks**: L3 (Left Stick Click), R3 (Right Stick Click).
+- **Navigation & Menus**: Options / Pause, Touchpad Right (Battlefield Map / Briefing), Touchpad Left (Photo Mode).
+- **D-Pad**: Up, Down, Left, Right.
+
+> [!NOTE]
+> **Analog Sticks & Triggers (L2 / R2)**:
+> Analog stick movement (walking, camera) and triggers (L2/R2) operate on analog axis hardware channels with continuous pressure and angles rather than discrete digital buttons. If your generic controller's analog axes are misaligned, use **⚙️ Map Device** in the launcher.
 
 ---
 

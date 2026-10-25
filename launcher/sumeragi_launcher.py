@@ -103,9 +103,11 @@ from patches import find_sfo, game_title_id, game_app_ver  # noqa: E402
 import dlc  # noqa: E402
 import sumeragi_patches as patches_module  # noqa: E402
 from sumeragi_native_trophies import TrophiesWindow  # noqa: E402
+from sumeragi_controller_controls import ControllerControlsWindow, build_pad_map_spec, validate_controls  # noqa: E402
 
 DEFAULTS = {"game": "", "update_dir": "", "dlc_dir": "", "display_mode": "borderless", "vsync": True, "fps_limit": 60, "rcas": False,
-            "anisotropy": 0, "resolution": "native", "upscale": "off", "audio_log": False, "audio_wav": False}
+            "anisotropy": 0, "resolution": "native", "upscale": "off", "audio_log": False, "audio_wav": False,
+            "pad_controls": {}, "pad_style": "playstation"}
 DISPLAY_MODES = [("Windowed", "windowed"), ("Borderless fullscreen", "borderless"),
                  ("Exclusive fullscreen", "fullscreen")]
 FPS_LIMITS = [("60 (game default)", 60), ("90", 90), ("120", 120), ("144", 144), ("165", 165),
@@ -522,9 +524,10 @@ class Launcher(tk.Tk):
         # Button rows
         btn_row1 = ttk.Frame(c3, style="Card.TFrame")
         btn_row1.pack(fill="x", pady=(0, 4))
-        ttk.Button(btn_row1, text="🎮 Map Controller", style="Small.TButton", command=lambda: self.map_pad([])).pack(side="left", padx=(0, 6))
-        ttk.Button(btn_row1, text="🕹 Map Sticks Only", style="Small.TButton", command=lambda: self.map_pad(["--sticks"])).pack(side="left", padx=(0, 6))
-        ttk.Button(btn_row1, text="↺ Reset Mapping", style="Small.TButton", command=self.reset_map).pack(side="left")
+        ttk.Button(btn_row1, text="🎮 Controls", style="Small.TButton", command=self.open_controller_controls).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row1, text="⚙️ Map Device", style="Small.TButton", command=lambda: self.map_pad([])).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row1, text="🕹 Sticks Only", style="Small.TButton", command=lambda: self.map_pad(["--sticks"])).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row1, text="↺ Reset Device Map", style="Small.TButton", command=self.reset_map).pack(side="left")
 
         btn_row2 = ttk.Frame(c3, style="Card.TFrame")
         btn_row2.pack(fill="x")
@@ -697,8 +700,17 @@ class Launcher(tk.Tk):
                     pass
 
     def _pad_text(self):
-        self.pad_label.config(text="Custom gamepad mapping in use." if MAPPING.exists()
-                              else "No custom mapping: XInput and known pads work as they are.")
+        parts = []
+        if MAPPING.exists():
+            parts.append("DirectInput mapping active.")
+        else:
+            parts.append("Hardware: Standard XInput/DirectInput.")
+
+        pad_spec = build_pad_map_spec(self.cfg.get("pad_controls"))
+        if pad_spec:
+            count = len(pad_spec.split(","))
+            parts.append(f"Remap: {count} action(s) modified.")
+        self.pad_label.config(text=" | ".join(parts))
 
     def _collect(self):
         self.cfg.update(
@@ -719,6 +731,7 @@ class Launcher(tk.Tk):
 
     def _env(self):
         env = os.environ.copy()
+        env.pop("SPARTAN_PAD_MAP", None)  # Prevent inherited environment variable leakage
         env["PATH"] = str(BIN) + os.pathsep + env.get("PATH", "")
         env["SPARTAN_USER_DIR"] = str(USER.resolve())
         env["SPARTAN_GPU_USER_DIR"] = str(USER.resolve())
@@ -728,6 +741,9 @@ class Launcher(tk.Tk):
             env["SPARTAN_WINDOW_ICON"] = str(WINDOW_ICON)
         if MAPPING.exists():
             env["SDL_GAMECONTROLLERCONFIG_FILE"] = str(MAPPING)
+        pad_spec = build_pad_map_spec(self.cfg.get("pad_controls"))
+        if pad_spec:
+            env["SPARTAN_PAD_MAP"] = pad_spec
         if self.cfg.get("audio_log"):  # one timestamped line per audio event, for bug reports
             env["SPARTAN_AUDIO_DEBUG"] = str(AUDIO_LOG)
         if self.cfg.get("audio_log") and self.cfg.get("audio_wav"):  # needs about 70 MB per minute
@@ -1015,6 +1031,27 @@ class Launcher(tk.Tk):
             game_dir=self.game_var.get(),
             update_dir=self.update_var.get(),
             user_dir=USER,
+        )
+
+    def open_controller_controls(self):
+        if getattr(self, "controls_win", None) and self.controls_win.winfo_exists():
+            self.controls_win.lift()
+            self.controls_win.focus_force()
+            return
+
+        def on_save(new_controls, new_style):
+            self.cfg["pad_controls"] = new_controls
+            self.cfg["pad_style"] = new_style
+            save_config(self.cfg)
+            self._pad_text()
+
+        self.controls_win = ControllerControlsWindow(
+            self,
+            current_controls=self.cfg.get("pad_controls", {}),
+            pad_style=self.cfg.get("pad_style", "playstation"),
+            language="id" if os.environ.get("LANG", "").lower().startswith("id") else "en",
+            on_save_callback=on_save,
+            bin_dir=BIN,
         )
 
     def _close(self):

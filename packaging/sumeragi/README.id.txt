@@ -30,9 +30,10 @@ Menu In-Game & Sistem Piala (Trophies)
   Screenshot: F12. Navigasi tab: L1/R1 atau Q/E.
   Dokumentasi lengkap piala: docs/TROPHIES.md
 
-Controller
+Controller & Pemetaan Tombol
   Stik XInput, DualShock 4, DualSense, serta yang didukung SDL berfungsi langsung.
-  Stik lain: gunakan tombol "Map controller" di launcher.
+  Mengubah tombol game: klik tombol "Controls" di launcher (mendukung deteksi tombol stik & tukar otomatis).
+  Stik generik DirectInput: gunakan tombol "Map controller" di launcher untuk kalibrasi tombol & stik analog.
 
 Kendala & Laporan Masalah
   Sertakan file user\last_run.log (dan user\prepare.log jika persiapan game gagal).

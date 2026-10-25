@@ -116,6 +116,7 @@ def main():
     shutil.rmtree(target / "launcher", ignore_errors=True)
     (target / "launcher").mkdir()
     for name in ("sumeragi_launcher.py", "sumeragi_patches.py", "sumeragi_native_trophies.py",
+                 "sumeragi_controller_controls.py", "controller_mapper.py",
                  "spartanport_trophies.py", "spartanport_lang.py", "sumeragi.ico", "sumeragi.png"):
         if (LAUNCHER / name).is_file():
             shutil.copy2(LAUNCHER / name, target / "launcher" / name)

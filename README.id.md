@@ -143,6 +143,41 @@ Pengaturan disimpan secara otomatis di `user\sumeragi.ini` (dengan migrasi otoma
 
 ---
 
+## Konfigurasi & Pemetaan Tombol Controller
+
+Sumeragi Native+ menyediakan sistem input 2 tingkat yang memisahkan kalibrasi perangkat fisik dari pemetaan aksi tombol in-game.
+
+### 1. Pemetaan Perangkat Fisik vs. Pemetaan Aksi Tombol In-Game
+
+| Lapisan | Tujuan | File Konfigurasi | Digunakan Oleh |
+|---|---|---|---|
+| **Pemetaan Perangkat Fisik (Hardware)** | Memberi tahu SDL cara mengenali controller DirectInput generik agar tombol fisik sesuai dengan standar umum (South, East, West, North, Shoulder, dll.). Controller XInput & DualShock/DualSense bekerja otomatis. | `user/gamepad_mapping.txt` | `sumeragi-pad-mapper.exe` / `SDL_GAMECONTROLLERCONFIG_FILE` |
+| **Pemetaan Aksi Tombol (Game Actions)** | Mengubah tombol aksi in-game (Cross, Circle, Square, Triangle, L1, R1, L3, R3, Options, D-pad) ke input controller yang Anda inginkan (misal menukar Cross dan Circle). | `user/launcher.json` (`pad_controls`) | `SPARTAN_PAD_MAP` / `runtime_pad.c` |
+
+### 2. Cara Mengubah Tombol Aksi Game
+1. Buka launcher lalu klik tombol **🎮 Controls** pada kartu *Controller & Utilitas*.
+2. Pilih **Gaya Label Tombol** yang Anda sukai:
+   - **PlayStation**: `✕ Cross`, `○ Circle`, `□ Square`, `△ Triangle`, `L1`, `R1`, dll.
+   - **Xbox**: `A`, `B`, `X`, `Y`, `LB`, `RB`, dll.
+   - **Nintendo**: `B`, `A`, `Y`, `X`, `L`, `R`, dll.
+3. Pilih tombol baru untuk aksi mana pun melalui menu dropdown, atau klik **🎮 Tekan Tombol** untuk mendeteksi tombol fisik langsung dari stik yang terhubung.
+4. Jika tombol yang ditekan sudah dipakai oleh aksi lain, launcher akan otomatis menukar kedua tombol untuk mencegah konflik tombol ganda.
+5. Tersedia tombol reset per-tombol dan tombol utama **↺ Reset Semua ke Default**.
+6. Klik **💾 Simpan & Terapkan**. Perubahan akan aktif secara otomatis pada peluncuran game berikutnya.
+
+### 3. Aksi yang Didukung untuk Pemetaan
+- **Tombol Aksi Depan**: Cross, Circle, Square, Triangle.
+- **Shoulder / Bumper**: L1, R1.
+- **Klik Stik Analog**: L3 (Klik Stik Kiri), R3 (Klik Stik Kanan).
+- **Navigasi & Menu**: Options / Pause, Touchpad Kanan (Peta Medan Pertempuran / Briefing), Touchpad Kiri (Mode Foto).
+- **D-Pad**: Atas, Bawah, Kiri, Kanan.
+
+> [!NOTE]
+> **Stik Analog & Pelatuk (L2 / R2)**:
+> Gerakan stik analog (jalan, kamera) dan pelatuk L2/R2 beroperasi pada jalur sumbu analog kontinu dengan tekanan dan derajat gerak, bukan tombol biner digital. Jika stik analog controller generik Anda terbalik atau tidak tepat, gunakan **⚙️ Map Device** pada launcher.
+
+---
+
 ## Menu In-Game & Tombol Cepat
 
 Buka menu konfigurasi in-game saat permainan sedang berlangsung:

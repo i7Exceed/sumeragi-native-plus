@@ -47,6 +47,7 @@ Launcher options
   Separate Update   Select custom update path with automated overlay merge
   Add-on DLCs       Discover and mount add-on content manifests automatically
   Trophies          View 43 trophies, progress bar, category tags, filters, and reset action
+  Controls          Remap logical game actions (Cross, Circle, Square, Triangle, L1, R1, L3, R3, Options, D-pad)
   Controller        Map controller / Map sticks only / Reset mapping
   Credits           Displays NOTICE.md
 
@@ -58,9 +59,10 @@ In-game menu & Trophies
   L1/R1 or Q/E switches tabs.
   Detailed trophy documentation: docs/TROPHIES.md
 
-Controller
+Controller & Button Remapping
   XInput, DualShock 4, DualSense, and SDL-supported pads work out-of-the-box.
-  Other pads: use "Map controller" in the launcher.
+  Remap game buttons: click "Controls" in the launcher (supports live button capture and swapping).
+  Other generic pads: use "Map controller" in the launcher to calibrate hardware buttons and axes.
 
 Troubleshooting
   Attach user\last_run.log (and user\prepare.log if image preparation failed) to your report.

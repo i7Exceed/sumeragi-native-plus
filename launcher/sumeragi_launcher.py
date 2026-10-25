@@ -867,7 +867,7 @@ class Launcher(tk.Tk):
         log = open(LOG, "wb")
         self.proc = subprocess.Popen(
             [str(exe), str(OUT / "boot-linked.bin"), "--content-profile", str(OUT / "content.bin"),
-             "--app0", str(effective_game), "--user", str(USER), "--no-game-hooks"] + patch_args,
+             "--app0", str(effective_game), "--user", str(USER), "--no-game-hooks", "--cheats"] + patch_args,
             env=self._env(), cwd=str(USER), stdout=log, stderr=subprocess.STDOUT, creationflags=NO_WINDOW)
         if self.cfg.get("audio_wav"):  # a one-session option: the next start has it off again
             self.cfg["audio_wav"] = False

@@ -22,7 +22,6 @@ REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 LAUNCHER = REPO / "launcher"
 NAME = "Sumeragi Native+"
-LEGACY_NAME = "Sengoku Basara 4"
 STDLIB = ["argparse", "base64", "collections", "ctypes", "ctypes.wintypes", "hashlib", "json", "shutil", "struct",
           "subprocess", "pathlib", "zlib", "re", "tempfile", "lzma", "bz2", "gzip", "io", "itertools", "math", "time",
           "textwrap", "binascii", "zipfile", "functools", "dataclasses", "typing", "enum", "string", "traceback",
@@ -91,8 +90,6 @@ def main():
     shutil.rmtree(target / "_internal", ignore_errors=True)
     shutil.copytree(built / "_internal", target / "_internal")
     shutil.copy2(built / f"{NAME}.exe", target / f"{NAME}.exe")
-    # Also provide legacy binary name for shortcuts and backwards compatibility
-    shutil.copy2(built / f"{NAME}.exe", target / f"{LEGACY_NAME}.exe")
 
     # runtime, mapper and the DLLs they load
     bin_dir = target / "bin"
@@ -126,7 +123,7 @@ def main():
     for doc in ("NOTICE.md", "LICENSE"):
         if (REPO / doc).is_file():
             shutil.copy2(REPO / doc, target / doc)
-    for doc in ("README.txt", "README.id.txt", "Play Sumeragi Native+.cmd", "Play Sengoku Basara 4.cmd"):
+    for doc in ("README.txt", "README.id.txt", "Play Sumeragi Native+.cmd"):
         if (HERE / doc).is_file():
             shutil.copy2(HERE / doc, target / doc)
 

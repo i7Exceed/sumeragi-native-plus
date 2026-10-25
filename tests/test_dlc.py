@@ -179,9 +179,9 @@ class TestDLCValidationAndDiscovery(unittest.TestCase):
 
 # Put launcher on sys.path for launcher integration tests
 sys.path.insert(0, str(ROOT / 'launcher'))
-import basara4_launcher  # noqa: E402
+import sumeragi_launcher as basara4_launcher  # noqa: E402
 from unittest import mock
-import packaging.basara4.make_package as make_package
+import packaging.sumeragi.make_package as make_package
 
 
 class TestLauncherDLCIntegration(unittest.TestCase):

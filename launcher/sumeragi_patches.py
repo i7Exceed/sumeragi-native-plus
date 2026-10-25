@@ -1,4 +1,5 @@
-"""Basara 4 PC - by Razz.   Copyright (C) 2026 Razz.   GPL-2.0-or-later (NOTICE.md).
+"""Sumeragi Native+ - Memory Patches (based on Basara 4 PC by Razz).
+Copyright (C) 2026 Razz, i7Exceed. GPL-2.0-or-later (NOTICE.md).
 
 Sengoku Basara 4 Sumeragi (CUSA01159) memory patches for the runtime loader.
 
@@ -51,7 +52,7 @@ def find(image, text):
                 best = (run_start, i)
             run_start = None
     a, b = best
-    anchor = bytes(pattern[a:b])
+    anchor = bytes(x for x in pattern[a:b] if x is not None)
     found, at = [], image.find(anchor)
     while at >= 0:
         s = at - a

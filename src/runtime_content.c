@@ -1,5 +1,8 @@
-/* Offline AppContent provider for the configured base-game profile.
- * No package/DLC mounting, downloads, entitlement or license emulation. */
+/* Offline AppContent provider for the configured base-game profile and local add-on DLCs.
+ * Based on Basara 4 Native PC by Razz (2026), under GNU GPL v2 or later.
+ * Modified by i7Exceed (October 2026) for Sumeragi Native+: local DLC manifest parsing,
+ * AppContent enumeration, and guest addcont mount binding.
+ */
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>

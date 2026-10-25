@@ -1,4 +1,6 @@
-/* Minimal x86-64 native loader experiment. Not a PS4 emulator or game port. */
+/* Minimal x86-64 native loader experiment. Not a PS4 emulator or game port.
+ * Derived from SpartanPort (Felipe Prado) and Basara 4 Native PC (Razz).
+ * Modified by i7Exceed (October 2026) for Sumeragi Native+ (--addons argument support). */
 #define _GNU_SOURCE
 #include <stdint.h>
 #include <stdio.h>

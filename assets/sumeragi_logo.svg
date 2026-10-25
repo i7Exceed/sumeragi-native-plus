@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 280" width="1000" height="280">
+  <defs>
+    <linearGradient id="goldText" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f3d88b"/>
+      <stop offset="60%" stop-color="#c9a24a"/>
+      <stop offset="100%" stop-color="#af8930"/>
+    </linearGradient>
+    <linearGradient id="crimsonPlus" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e74c3c"/>
+      <stop offset="100%" stop-color="#962d22"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left Icon Emblem (scaled and translated) -->
+  <g transform="translate(30, 20) scale(0.47)">
+    <polygon points="256,24 456,140 456,372 256,488 56,372 56,140"
+             fill="none" stroke="#c9a24a" stroke-width="12" stroke-linejoin="round"/>
+    <!-- Top -->
+    <polygon points="256,76 336,196 256,236 176,196" fill="#c9a24a"/>
+    <polygon points="256,96 316,190 256,220 196,190" fill="#eadfcb"/>
+    <!-- Bottom -->
+    <polygon points="256,436 336,316 256,276 176,316" fill="#c9a24a"/>
+    <polygon points="256,416 316,322 256,292 196,322" fill="#eadfcb"/>
+    <!-- Left -->
+    <polygon points="76,256 196,176 236,256 196,336" fill="#c9a24a"/>
+    <polygon points="96,256 190,196 220,256 190,316" fill="#eadfcb"/>
+    <!-- Right -->
+    <polygon points="436,256 316,176 276,256 316,336" fill="#c9a24a"/>
+    <polygon points="416,256 322,196 292,256 322,316" fill="#eadfcb"/>
+    <!-- Center Plus -->
+    <rect x="238" y="214" width="36" height="84" rx="4" fill="#a93226" stroke="#f3d88b" stroke-width="3"/>
+    <rect x="214" y="238" width="84" height="36" rx="4" fill="#a93226" stroke="#f3d88b" stroke-width="3"/>
+    <polygon points="256,244 268,256 256,268 244,256" fill="#ffffff"/>
+  </g>
+
+  <!-- Typography: SUMERAGI NATIVE + -->
+  <text x="310" y="125" font-family="'Segoe UI', 'Cinzel', 'Trajan Pro', 'Georgia', serif" font-size="64" font-weight="bold" fill="url(#goldText)" letter-spacing="3">SUMERAGI</text>
+  <text x="680" y="125" font-family="'Segoe UI', 'Inter', 'Helvetica Neue', sans-serif" font-size="52" font-weight="300" fill="#eadfcb" letter-spacing="4">NATIVE</text>
+  <text x="895" y="125" font-family="'Segoe UI', sans-serif" font-size="68" font-weight="900" fill="url(#crimsonPlus)">+</text>
+
+  <!-- Divider Line -->
+  <line x1="310" y1="155" x2="940" y2="155" stroke="#c9a24a" stroke-width="2" opacity="0.6"/>
+
+  <!-- Tagline -->
+  <text x="312" y="195" font-family="'Segoe UI', 'Inter', sans-serif" font-size="24" font-weight="400" fill="#a49a8b" letter-spacing="2">The Sumeragi experience, evolved.</text>
+  <text x="312" y="235" font-family="'Segoe UI', sans-serif" font-size="16" font-weight="400" fill="#6a6358">High-Performance Open-Source Native PS4 PC Runtime Environment</text>
+</svg>

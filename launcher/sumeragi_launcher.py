@@ -1,11 +1,12 @@
-"""Basara 4 PC launcher - by Razz (enhanced by zhiidan).
+"""Sumeragi Native+ Launcher - by i7Exceed (based on Basara 4 PC by Razz).
 
-Runs Sengoku Basara 4 Sumeragi (PS4, CUSA01159) on the native runtime in bin\\ (basara4-core.exe), a fork of
-SpartanPort. Free software under the GNU GPL v2 or later; the credits are in NOTICE.md.
+Runs Sengoku Basara 4 Sumeragi (PS4, CUSA01159) on the native PC runtime in bin\\ (sumeragi-core.exe / basara4-core.exe),
+a fork of SpartanPort. Free software under the GNU GPL v2 or later; credits and licenses are in NOTICE.md.
 
 Everything lives next to this program:
-  bin\\   the runtime (basara4-core.exe) and its DLLs
+  bin\\   the runtime (sumeragi-core.exe / basara4-core.exe) and its DLLs
   game\\  the game dump (the folder with eboot.bin); another folder can be chosen
+  dlc\\   optional extracted add-on content folders (auto-detected)
   out\\   the prepared game image, made automatically from eboot.bin
   user\\  saves, shader cache, settings, the log
 """
@@ -14,6 +15,7 @@ import importlib.util
 import json
 import os
 import runpy
+import shutil
 import subprocess
 import sys
 import threading
@@ -23,15 +25,16 @@ FROZEN = getattr(sys, "frozen", False)
 ROOT = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parent.parent
 BIN, OUT, USER, SCRIPTS = ROOT / "bin", ROOT / "out", ROOT / "user", ROOT / "scripts"
 CONFIG = USER / "launcher.json"
-INI = USER / "basara4.ini"
-OLD_INI = USER / "spartanport.ini"
+INI = USER / "sumeragi.ini"
+OLD_INI = USER / "basara4.ini"
+ANCIENT_INI = USER / "spartanport.ini"
 WINDOW_ICON = USER / "window_icon.bmp"
-CORE = BIN / "basara4-core.exe"
+CORE = BIN / "sumeragi-core.exe" if (BIN / "sumeragi-core.exe").is_file() else BIN / "basara4-core.exe"
 VERSION = "1.0.2"
-BRAND = "Basara 4 PC"
-AUTHOR = "Razz"
-CONTRIBUTOR = "zhiidan"
-CONTRIBUTOR_URL = "https://github.com/zhiidan"
+BRAND = "Sumeragi Native+"
+TAGLINE = "The Sumeragi experience, evolved."
+AUTHOR = "i7Exceed"
+AUTHOR_URL = "https://github.com/i7Exceed"
 LOG = USER / "last_run.log"
 PREPARE_LOG = USER / "prepare.log"
 MAPPING = USER / "gamepad_mapping.txt"
@@ -98,7 +101,7 @@ import game_update  # noqa: E402
 from patches import find_sfo, game_title_id, game_app_ver  # noqa: E402
 # pyrefly: ignore[missing-import]
 import dlc  # noqa: E402
-import basara4_patches  # noqa: E402
+import sumeragi_patches as patches_module  # noqa: E402
 
 DEFAULTS = {"game": "", "update_dir": "", "dlc_dir": "", "display_mode": "borderless", "vsync": True, "fps_limit": 60, "rcas": False,
             "anisotropy": 0, "resolution": "native", "upscale": "off", "audio_log": False, "audio_wav": False}
@@ -262,11 +265,11 @@ class Launcher(tk.Tk):
         self.play_now = play_now
         self.update_view = None
         self._cleanup_leftover_views()
-        self.title(f"Sengoku Basara 4 Sumeragi  \u00b7  {BRAND} by {AUTHOR}")
+        self.title(f"{BRAND}  \u00b7  {TAGLINE}")
         self.configure(bg=BG)
         self.geometry("1020x630")
         self.minsize(980, 580)
-        icon = Path(__file__).resolve().parent / "basara4.ico"
+        icon = Path(__file__).resolve().parent / "sumeragi.ico"
         if icon.is_file():
             try:
                 self.iconbitmap(str(icon))
@@ -375,8 +378,9 @@ class Launcher(tk.Tk):
             self.cover_label = tk.Label(cover_box, image=self.cover, bd=0, bg=PANEL)
             self.cover_label.pack(padx=2, pady=2)
 
-        ttk.Label(left, text="戦国BASARA4 皇", style="Head.TLabel").pack(pady=(4, 0))
-        ttk.Label(left, text="Sengoku Basara 4 Sumeragi", style="Panel.TLabel", font=("Segoe UI", 9)).pack()
+        ttk.Label(left, text=BRAND, style="Head.TLabel").pack(pady=(4, 0))
+        ttk.Label(left, text=TAGLINE, style="Panel.TLabel", font=("Segoe UI", 9, "italic")).pack()
+        ttk.Label(left, text="Target: Sengoku Basara 4 Sumeragi", style="CardMuted.TLabel", font=("Segoe UI", 8)).pack(pady=(2, 0))
         self.ver_label = ttk.Label(left, text="CUSA01159", style="Badge.TLabel")
         self.ver_label.pack(pady=(6, 8))
 
@@ -394,8 +398,8 @@ class Launcher(tk.Tk):
         mark = ttk.Frame(left, style="Panel.TFrame")
         mark.pack(side="bottom", fill="x", pady=(8, 0))
         tk.Label(mark, text=BRAND.upper(), bg=PANEL, fg=GOLD, font=("Georgia", 10, "bold")).pack()
-        tk.Label(mark, text=f"Original by {AUTHOR}", bg=PANEL, fg=MUTED, font=("Segoe UI", 8)).pack()
-        tk.Label(mark, text=f"Enhanced by {CONTRIBUTOR}  ·  v{VERSION}", bg=PANEL, fg=RAZZ, font=("Segoe UI Semibold", 8)).pack()
+        tk.Label(mark, text=f"Developed by {AUTHOR}  ·  v{VERSION}", bg=PANEL, fg=GOLD, font=("Segoe UI Semibold", 8)).pack()
+        tk.Label(mark, text="Based on Basara 4 PC (Razz) & SpartanPort", bg=PANEL, fg=MUTED, font=("Segoe UI", 8)).pack()
         ttk.Button(mark, text="Credits & Licenses", style="Small.TButton", command=self.show_credits).pack(fill="x", pady=(6, 0))
 
         # =========================================================================
@@ -633,8 +637,17 @@ class Launcher(tk.Tk):
         self.image_label.config(text=text)
 
     def _ini(self):
-        if OLD_INI.exists() and not INI.exists():
-            os.replace(OLD_INI, INI)  # settings made before the runtime was renamed
+        if not INI.exists():
+            if OLD_INI.exists():
+                try:
+                    shutil.copy2(OLD_INI, INI)
+                except OSError:
+                    pass
+            elif ANCIENT_INI.exists():
+                try:
+                    shutil.copy2(ANCIENT_INI, INI)
+                except OSError:
+                    pass
         return INI
 
     def _load_ini_into_ui(self):
@@ -729,9 +742,13 @@ class Launcher(tk.Tk):
         game = Path(self.cfg["game"]) if self.cfg["game"] else None
         update_dir = Path(self.cfg["update_dir"]) if self.cfg.get("update_dir") else None
         dlc_dir = Path(self.cfg["dlc_dir"]) if self.cfg.get("dlc_dir") else None
-        exe = CORE
+        exe = BIN / "sumeragi-core.exe"
         if not exe.is_file():
-            for cand in (ROOT / "out" / "basara4-core.exe", ROOT / "out" / "gpu" / "basara4-core.exe"):
+            exe = CORE
+        if not exe.is_file():
+            for cand in (ROOT / "bin" / "sumeragi-core.exe", ROOT / "bin" / "basara4-core.exe",
+                         ROOT / "out" / "sumeragi-core.exe", ROOT / "out" / "basara4-core.exe",
+                         ROOT / "out" / "gpu" / "basara4-core.exe"):
                 if cand.is_file():
                     exe = cand
                     break
@@ -777,7 +794,7 @@ class Launcher(tk.Tk):
             patch_args, notice = [], ""
             if not error and self.cfg["fps_limit"] != 60:
                 try:
-                    writes, _ = basara4_patches.build(OUT / "eboot.elf", OUT / "patches.bin", True)
+                    writes, _ = patches_module.build(OUT / "eboot.elf", OUT / "patches.bin", True)
                 except OSError:
                     writes = []
                 if writes:
@@ -934,14 +951,21 @@ class Launcher(tk.Tk):
 
     # ---- controller and files ----
     def map_pad(self, extra):
-        exe = BIN / "basara4-pad-mapper.exe"
-        if not exe.is_file():
-            for cand in (ROOT / "out" / "basara4-pad-mapper.exe", ROOT / "tools" / "basara4-pad-mapper.exe"):
-                if cand.is_file():
-                    exe = cand
-                    break
-        if not exe.is_file():
-            messagebox.showerror("Mapper missing", str(exe))
+        candidates = [
+            BIN / "sumeragi-pad-mapper.exe",
+            BIN / "basara4-pad-mapper.exe",
+            ROOT / "out" / "sumeragi-pad-mapper.exe",
+            ROOT / "out" / "basara4-pad-mapper.exe",
+            ROOT / "tools" / "sumeragi-pad-mapper.exe",
+            ROOT / "tools" / "basara4-pad-mapper.exe",
+        ]
+        exe = None
+        for cand in candidates:
+            if cand.is_file():
+                exe = cand
+                break
+        if not exe or not exe.is_file():
+            messagebox.showerror("Mapper missing", f"Could not find sumeragi-pad-mapper.exe or basara4-pad-mapper.exe in:\n{BIN}")
             return
         env = os.environ.copy()
         clang = Path(r"C:\msys64\clang64\bin")

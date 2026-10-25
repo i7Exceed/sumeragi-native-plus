@@ -1,60 +1,85 @@
-# Sengoku Basara 4 Sumeragi for PC (Basara 4 PC)
+# Sumeragi Native+
 
 <div align="center">
 
-![C++](https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C17-00599C?logo=c%2B%2B)
-![Python](https://img.shields.io/badge/Launcher-Python%203.11-3776AB?logo=python)
-![Vulkan](https://img.shields.io/badge/Graphics-Vulkan%201.3-E10019?logo=vulkan)
-![License](https://img.shields.io/badge/License-GPL%20v2.0%2B-blue.svg)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/UBZc57bBMa)
-[![TikTok](https://img.shields.io/badge/TikTok-@razzconnect-000000?logo=tiktok&logoColor=white)](https://www.tiktok.com/@razzconnect)
+<img src="assets/sumeragi_logo.svg" alt="Sumeragi Native+ Logo" width="560">
+
+<br><br>
+
+*The Sumeragi experience, evolved.*
+
+[![Build & Compliance](https://img.shields.io/badge/Build-Passing-2e7d32?logo=github-actions&logoColor=white)](#building-from-source)
+[![Language](https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C17-00599C?logo=c%2B%2B)](#technical-architecture)
+[![Launcher](https://img.shields.io/badge/Launcher-Python%203.11%2B-3776AB?logo=python)](#launcher-settings)
+[![Graphics](https://img.shields.io/badge/Graphics-Vulkan%201.3-E10019?logo=vulkan)](#features--highlights)
+[![License](https://img.shields.io/badge/License-GPL%20v2.0%2B-c9a24a.svg)](LICENSE)
+[![Repository](https://img.shields.io/badge/GitHub-i7Exceed%2Fsumeragi--native--plus-1c1916?logo=github)](https://github.com/i7Exceed/sumeragi-native-plus)
 
 </div>
 
+---
+
 **English** | [Bahasa Indonesia](README.id.md)
 
-An open-source native PC port and launcher for **Sengoku Basara 4 Sumeragi** (PlayStation 4, CUSA01159) for Windows 10/11.
+**Sumeragi Native+** is an independent, community-developed native PC port and modern launcher for **Sengoku Basara 4 Sumeragi** (PlayStation 4, `CUSA01159`) on 64-bit Windows 10/11.
 
-The game's original x86-64 code executes directly on your PC's CPU without emulation. The PlayStation 4 system libraries are re-implemented function by function in native C/C++, and GPU commands are translated to Vulkan 1.3 in real-time.
+The game's compiled x86-64 machine instructions execute directly on your host processor with zero virtualization overhead. Missing PlayStation 4 system libraries are cleanly implemented in native C, and GPU draw calls and GCN shaders are translated to Vulkan 1.3 in real time.
 
-> **No copyrighted game files are included.** You must provide your own legally dumped copy of the game from your PlayStation 4 console (tested: CUSA01159).
+---
+
+> ### ⚠️ Legal Disclaimer & Compliance Notice
 >
-> This project is an independent open-source reverse-engineering and preservation project made by **Razz**.
-> Not affiliated with, endorsed by, or associated with Capcom or Sony Interactive Entertainment.
-> "Sengoku Basara" is a trademark of Capcom Co., Ltd. "PlayStation" is a trademark of Sony Interactive Entertainment.
+> - **Independent Community Development**: Sumeragi Native+ is an independent open-source project maintained by **i7Exceed**, building upon upstream contributions by **Razz** (*Basara 4 Native PC*), **Felipe Prado** (*SpartanPort*), **Supermedo** & **deadinside28** (*bloodborne_pc*), and the **shadPS4 Team**.
+> - **No Official Affiliation**: This project is **NOT** affiliated with, endorsed by, sponsored by, or an official product of **Capcom Co., Ltd.**, **Sony Interactive Entertainment Inc.**, or any of their affiliates.
+> - **Nominative Identification**: Any game titles (*"Sengoku Basara 4 Sumeragi"*), platform names (*"PlayStation 4"*, *"PS4"*), and company names are used strictly as factual, nominative references to identify intended technical compatibility.
+> - **Zero Game Files Distributed**: This repository and its official release packages **do not distribute** proprietary game dumps, decrypted executables, console firmware keys, console licenses (`.rif`/`.rap`), DLC packages, textures, audio, 3D models, or copyrighted game media.
+> - **User-Provided Content**: Users must dump and provide their own legally purchased copy of the game from their own PlayStation 4 console.
+> - **Warranty Notice**: Experimental features and performance unlocks are provided *"as is"* under the GNU General Public License v2.0 (or later), without warranty of any kind.
+>
+> For full component licensing details, source provenance, and audit findings, consult [docs/COPYRIGHT_AND_LICENSE_AUDIT.md](docs/COPYRIGHT_AND_LICENSE_AUDIT.md) and [NOTICE.md](NOTICE.md).
 
 ---
 
 ## Contents
 
+- [Visual Identity & Design Philosophy](#visual-identity--design-philosophy)
 - [Features & Highlights](#features--highlights)
 - [System Requirements](#system-requirements)
-- [Download and Play](#download-and-play)
-- [Launcher Settings](#launcher-settings)
+- [Quick Start: Download & Play](#quick-start-download--play)
+- [Launcher Settings & Configuration](#launcher-settings--configuration)
 - [In-Game Menu & Hotkeys](#in-game-menu--hotkeys)
-- [Controller Support](#controller-support)
-- [How It Works (Technical Architecture)](#how-it-works-technical-architecture)
+- [Controller Configuration](#controller-configuration)
+- [Technical Architecture](#technical-architecture)
 - [Building from Source](#building-from-source)
+- [Release Packaging & Compliance](#release-packaging--compliance)
 - [Troubleshooting & Logs](#troubleshooting--logs)
-- [Credits & Acknowledgments](#credits--acknowledgments)
-- [Community & Socials](#community--socials)
+- [Credits & Upstream Lineage](#credits--upstream-lineage)
 - [License](#license)
+
+---
+
+## Visual Identity & Design Philosophy
+
+Sumeragi Native+ introduces an original aesthetic rooted in classical Japanese martial iconography fused with modern high-performance engineering:
+- **Palette**: Dark charcoal (`#12100e`, `#1c1916`), Warm ivory (`#eadfcb`), Muted antique gold (`#c9a24a`), and Lacquer crimson (`#a93226`).
+- **Original Vector Iconography**: Wholly original vector SVG artwork (`assets/sumeragi_icon.svg` and `assets/sumeragi_logo.svg`) representing an abstract geometric samurai crest (*kamon*), containing zero proprietary or traced Capcom / Sony artwork.
+- **Application Icons**: Multi-resolution Windows application icon (`launcher/sumeragi.ico`) supporting 16px to 256px displays with transparent alpha layers.
 
 ---
 
 ## Features & Highlights
 
-- **100% Native CPU Execution**: No CPU interpreter or JIT compiler. The game's compiled x86-64 instructions run directly on host CPU cores with near-zero overhead.
-- **Custom Software Ngs2 Audio Engine**: Reverse-engineered and implemented software Ngs2 sound graph handling multi-channel ATRAC9 streaming, LibAtrac9 decoding, voice synthesis, PCM playback, and submixing.
+- **100% Native CPU Execution**: Zero CPU emulation, binary translation, or JIT lag. The game's x86-64 instructions execute natively at native CPU speeds.
+- **Separate Game Update Overlay**: Mount and play updated versions (v1.01, v1.02) non-destructively without altering your clean base game dump directory.
+- **Local DLC Discovery & Mounting (Stage 2)**: Reliable discovery, entitlement validation, versioned binary manifest (`B4ADD001`), AppContent enumeration (`sceAppContentGetAddcontInfoList`), and guest mounting (`/addcont0` ... `/addcont15`) for locally extracted add-on content without synthetic license bypasses.
+- **Dual-Binary Runtime Compatibility**: Seamless discovery and execution of both canonical (`sumeragi-core.exe`, `sumeragi-pad-mapper.exe`) and legacy (`basara4-core.exe`, `basara4-pad-mapper.exe`) runtime executables and configuration files.
+- **Custom Software Ngs2 Audio Engine**: Implemented software Ngs2 sound graph handling multi-channel ATRAC9 streaming, LibAtrac9 decoding, voice synthesis, PCM playback, and submixing.
 - **Vulkan 1.3 Graphics Translation**: High-performance translation of PlayStation 4 AMD GCN shader bytecode and draw calls directly into SPIR-V / Vulkan.
-- **Custom Basara 4 PC Launcher**: Built from scratch with a themed Sengoku aesthetic, resolution picker, display modes, anisotropic filtering, FSR 1 upscaling, and controller configuration.
-- **Separate Game Update Overlay**: Mount and play updated versions (e.g. v1.01, v1.02) non-destructively without modifying your base game dump.
-- **Local DLC & Add-on Content Support (Stage 2)**: Reliable discovery, validation, enumeration, and guest mounting (`/addcont0` ... `/addcont15`) for locally extracted add-on content without synthetic license bypasses.
-- **True Unlimited FPS Unlock**: Integrated memory patch (`basara4_patches.py`) that scans for the engine's internal frame limiter and disables it, unlocking 90, 120, 144, 165, 240, and uncapped FPS on high-refresh displays.
+- **High-Refresh & Uncapped Framerates**: Integrated memory patch (`basara4_patches.py`) that scans for the engine's internal frame limiter and disables it, unlocking 90, 120, 144, 165, 240, and uncapped FPS on high-refresh displays.
 - **AMD FidelityFX Super Resolution (FSR 1)** & **RCAS Sharpening**: Upscale cleanly from 720p/900p/1080p to 1440p or 4K.
 - **Anisotropic Filtering (up to 16x)**: Greatly enhances floor and terrain texture clarity across battlefields.
-- **Dynamic Asset & Import Preparation**: Automatic game image preparation pipeline (`prepare.py`, `link_libc.py`, `link_modules.py`, `content_profile.py`) that adapts to official patches without touching your original dump.
-- **Universal Gamepad Mapper**: Bundled SDL3 mapper tool (`basara4-pad-mapper.exe`) for DirectInput, generic USB gamepads, and Xbox/PlayStation controllers.
+- **Modernized Card-Based Launcher**: Built with a clean native dark aesthetic, responsive sidebar, DLC discovery UI, and controller configuration tools.
+- **Automated Release Compliance Validation**: Bundled static validator (`packaging/validate_release.py`) to guarantee zero proprietary game assets enter distributions or git tracking.
 
 ---
 
@@ -63,26 +88,26 @@ The game's original x86-64 code executes directly on your PC's CPU without emula
 | Component | Minimum | Recommended |
 |---|---|---|
 | **Operating System** | Windows 10 64-bit (1903 or newer) | Windows 10/11 64-bit (latest) |
-| **Processor (CPU)** | 64-bit CPU with AVX support (Intel Sandy Bridge 2011+, AMD FX) | 6-core / 12-thread modern CPU (Intel 10th Gen+ / AMD Ryzen 3000+) |
-| **Graphics (GPU)** | Vulkan 1.3 compliant GPU (GTX 1060 / Radeon RX 580) | RTX 2060 / Radeon RX 6600 or higher |
-| **System Memory** | 8 GB RAM | 16 GB RAM |
+| **Processor (CPU)** | 64-bit x86-64 with AVX / AVX2 (Intel Core 4th Gen+ / AMD Ryzen) | Modern 6-core / 12-thread CPU (Intel 10th Gen+ / Ryzen 3000+) |
+| **Graphics (GPU)** | Vulkan 1.3 compliant GPU (GTX 1060 6GB / RX 580) | RTX 2060 / RX 6600 or higher |
+| **System Memory** | 8 GB RAM | 16 GB RAM (dual-channel) |
 | **Storage** | ~20 GB free space (SSD recommended) | Fast NVMe SSD |
-| **Game Copy** | Legal dump of Sengoku Basara 4 Sumeragi (`CUSA01159`) | Dump with update installed |
+| **Game Files** | Legally obtained dump of Sengoku Basara 4 Sumeragi (`CUSA01159`) | Dump with update installed |
 
 ---
 
-## Download and Play
+## Quick Start: Download & Play
 
-### 1. Get the Package
-Download the latest `basara4-windows.zip` from the [Releases](https://github.com/razzconnect/basara4-native-pc/releases) page and extract it to a directory of your choice (e.g. `C:\Games\basara4-windows`).
+### 1. Download Release
+Download the latest `sumeragi-native-plus-windows.zip` from GitHub Releases and extract it to a clean directory (e.g. `C:\Games\SumeragiNativePlus`).
 
 ### 2. Supply Your Game Dump
 Place your decrypted PS4 game dump folder (which contains `eboot.bin`, `sce_module\`, and `sce_sys\`) into the `game\` directory, or click **Browse** in the launcher to select its location.
 
-### 3. (Optional) Supply Game Update & DLC Folders
-- **Update Folder**: Select your extracted update folder (e.g. v1.02) in the **Update Folder** field.
+### 3. (Optional) Separate Update & DLC Folders
+- **Update Folder**: Select your separately extracted update directory in the **Update Folder** field.
 - **DLC Folder**: Select your locally extracted DLC directory in the **DLC Folder** field.
-  Organize your extracted add-on folders using the standard structure:
+  Organize extracted add-on folders using the standard structure:
   ```text
   <DLC_ROOT>/CUSA01159/<ENTITLEMENT_ID>/<content files>
   ```
@@ -97,117 +122,94 @@ Place your decrypted PS4 game dump folder (which contains `eboot.bin`, `sce_modu
   ```
 
 ### 4. Launch and Play
-1. Double-click **`Sengoku Basara 4.exe`**.
-2. Select your desired resolution, display mode, and frame limit.
-3. Click **PLAY**.
-   - *Note:* The very first launch will automatically prepare the linked binary image into `out\` (takes roughly 30–60 seconds). Subsequent boots start immediately.
-4. To launch directly with your last saved settings without opening the launcher GUI, use **`Play Sengoku Basara 4.cmd`**.
+1. Launch **`Sumeragi Native+.exe`**.
+2. Press **PLAY**. The first launch prepares the game image from `eboot.bin` (~1 minute) into `out\`.
+3. To jump straight into the game with saved settings, use **`Play Sumeragi Native+.cmd`**.
 
 ---
 
-## Launcher Settings
+## Launcher Settings & Configuration
 
-| Option | Available Values | Description |
-|---|---|---|
-| **Display Mode** | Windowed, Borderless Fullscreen, Exclusive Fullscreen | Select your preferred window presentation mode. |
-| **Window Size** | Native (1080p), 720p, 900p, 1440p, 1800p, 4K | Output viewport resolution (game renders internally at 1080p). |
-| **Upscaling** | Off, FSR 1 | AMD FidelityFX Super Resolution upscaling to target resolution. |
-| **Sharpening (RCAS)** | Enabled / Disabled | Robust Contrast Adaptive Sharpening filter. |
-| **Anisotropic Filtering**| Off, 2x, 4x, 8x, 16x | Texture filtering quality for oblique camera angles. |
-| **Frame Limit** | 60 (Default), 90, 120, 144, 165, 240, Unlimited | Overrides engine cap using automated signature patching. |
-| **VSync** | Enabled / Disabled | Synchronize buffer swaps to display refresh rate. |
-| **Audio Debug Log** | Enabled / Disabled | Writes granular Ngs2 voice and bus diagnostics to `user\audio_debug.log`. |
+The launcher provides fine-grained visual and runtime controls:
+- **Display Mode**: Windowed, Borderless Fullscreen, Exclusive Fullscreen.
+- **Window Size**: Native (1080p), 720p, 900p, 1440p, 1800p, 4K.
+- **Upscaling**: Off, or AMD FidelityFX Super Resolution 1 (FSR 1).
+- **Frame Rate Limit**: 60 (default), 90, 120, 144, 165, 240, or Unlimited.
+- **Enhancements**: VSync, RCAS sharpening strength, anisotropic filtering (2x to 16x).
+- **Controller Tools**: Full controller mapping, stick-only mapping, or reset saved bindings.
+
+Settings are saved automatically to `user\sumeragi.ini` (with automatic migration from legacy `basara4.ini` / `spartanport.ini`).
 
 ---
 
 ## In-Game Menu & Hotkeys
 
-- **Insert** (Keyboard) or **R3 + L2** (Gamepad): Opens the in-game overlay menu (FSR settings, Anisotropic filtering, controller indicators, and About).
-- **F12**: Captures a screenshot to `user\`.
-- **L1 / R1** (or **Q / E**): Switches tabs in the overlay menu.
+Open the in-game configuration overlay while playing:
+- **Keyboard**: Press `Insert`.
+- **Controller**: Press `R3 + L2` (PlayStation) or `RS + LT` (Xbox).
+- **Navigation**: Use `L1 / R1` or `Q / E` to switch tabs.
+- **Screenshot**: Press `F12` (saved to `user\screenshots\`).
 
 ---
 
-## Controller Support
+## Technical Architecture
 
-- **Native XInput & SDL3**: Xbox One / Series, DualShock 4, DualSense, and Nintendo Switch Pro controllers are recognized automatically.
-- **Generic / DirectInput Gamepads**: Click **Map controller** in the launcher to calibrate button and stick axes using `basara4-pad-mapper.exe`. Mapping values are saved to `user\gamepad_mapping.txt`.
+Sumeragi Native+ employs a modular native runtime architecture:
 
----
+```mermaid
+graph TD
+    Launcher["Sumeragi Native+ Launcher<br/>(launcher/sumeragi_launcher.py)"]
+    Prep["Preparation Pipeline<br/>(prepare.py, dlc.py, game_update.py)"]
+    Loader["Runtime Loader Core<br/>(sumeragi-core.exe / probe.c)"]
+    GuestELF["Game Code (x86-64)<br/>(boot-linked.bin)"]
+    ShimSys["Native System Contracts<br/>(runtime_offline.c, runtime_content.c)"]
+    VulkanGPU["Video Core & Vulkan Shim<br/>(libspartanportgpu / shadPS4)"]
+    AudioCore["Software Ngs2 Sound Graph<br/>(LibAtrac9 + AudioOut)"]
 
-## How It Works (Technical Architecture)
-
+    Launcher --> Prep
+    Prep --> Loader
+    Loader --> GuestELF
+    GuestELF --> ShimSys
+    GuestELF --> VulkanGPU
+    GuestELF --> AudioCore
 ```
-[ PS4 eboot.bin (x86-64 ELF) ]
-              │
-              ▼  (Direct Execution on Host CPU)
-      Host CPU (x86-64)
-              │
-    ┌─────────┴─────────────────────────────────┐
-    │                                           │
-    ▼ (System Calls / Libs)                     ▼ (GPU / Draw Calls)
-[ C System HLE Runtime ]             [ Vulkan 1.3 Translation Core ]
-- runtime_offline.c (~130 contracts) - GCN bytecode -> SPIR-V
-- Kernel Events, Threads, Sockets    - FSR 1 / RCAS / Anisotropy
-- Software Ngs2 (ATRAC9, PCM)        - Vulkan Memory Allocator
-- LibAtrac9 Decoder (Hardened)                  │
-    │                                           ▼
-    ▼                                      Host GPU (Vulkan)
-AudioOut / DirectSound / WASAPI
-```
-
-1. **Native CPU Execution**: Unlike traditional console emulators (e.g. RPCS3), no CPU translation layer is required. Both the PS4 and modern PCs share the AMD64 (x86-64) architecture.
-2. **Reverse-Engineered System Contracts (`src/runtime_offline.c`)**: Capcom's MT Framework engine for Basara 4 relies on ~130 PlayStation 4 OS functions not found in base SpartanPort. These were reverse-engineered and implemented natively, including:
-   - Kernel event flags and multi-thread sync primitives.
-   - Offline AppContent / PlayGo container virtualisation.
-   - Offline NetCtl / NP / HTTP stubs to satisfy network checks.
-   - Message dialog and screenshot service bridges.
-3. **Software Ngs2 Sound Graph (`src/runtime_audio.c`)**: Basara 4 routes all background music, dialogue, and combat SFX through Sony's proprietary Ngs2 library. This project implements a software Ngs2 graph featuring voice samplers, loop point handling, pitch scaling, ring buffer streaming, and multi-channel master buses.
-4. **Hardened LibAtrac9 Decoder**: Incorporates security and boundary hardening within `third_party/LibAtrac9` (`huffCodes.c`, `unpack.c`, `band_extension.c`) to gracefully handle edge-case stream corruptions without crashing.
-5. **On-the-Fly Memory Patching (`launcher/basara4_patches.py`)**: Locates the game's internal frame throttle instructions via byte pattern matching and removes the cap before execution begins.
 
 ---
 
 ## Building from Source
 
 ### Prerequisites
-
-1. **MSYS2** with the **CLANG64** environment installed:
-   ```bash
-   pacman -S --needed base-devel mingw-w64-clang-x86_64-toolchain \
-       mingw-w64-clang-x86_64-cmake mingw-w64-clang-x86_64-ninja \
-       mingw-w64-clang-x86_64-vulkan-headers mingw-w64-clang-x86_64-vulkan-loader \
-       mingw-w64-clang-x86_64-sdl3 mingw-w64-clang-x86_64-ffmpeg \
-       mingw-w64-clang-x86_64-glslang mingw-w64-clang-x86_64-pkg-config
-   ```
-2. **Python 3.10+** (Windows host installation) with `PyInstaller` and `Pillow`:
-   ```powershell
-   python -m pip install pyinstaller pillow
-   ```
+- Windows 10/11 64-bit
+- [MSYS2](https://www.msys2.org/) with the `CLANG64` environment:
+  ```bash
+  pacman -S --needed mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-cmake \
+      mingw-w64-clang-x86_64-ninja mingw-w64-clang-x86_64-pkg-config \
+      mingw-w64-clang-x86_64-vulkan-loader mingw-w64-clang-x86_64-vulkan-headers \
+      mingw-w64-clang-x86_64-sdl3 mingw-w64-clang-x86_64-ffmpeg
+  ```
+- Windows Python 3.11+ with `pyinstaller` and `pillow`.
 
 ### Compilation Steps
-
-1. Clone the repository recursively:
+1. Clone the repository:
    ```bash
-   git clone --recursive https://github.com/razzconnect/basara4-native-pc.git
-   cd basara4-pc
+   git clone --recursive https://github.com/i7Exceed/sumeragi-native-plus.git
+   cd sumeragi-native-plus
    ```
-
-2. Open the **MSYS2 CLANG64** terminal and build the native runtime:
+2. Open the MSYS2 CLANG64 shell and run:
    ```bash
    bash build.sh
    ```
-   *This compiles `out/gpu/basara4-core.exe`.*
+   *To run tests:* `bash build.sh --test`
 
 3. In PowerShell, assemble the distribution package:
    ```powershell
-   python packaging/basara4/make_package.py --out dist/basara4-windows
+   python packaging/sumeragi/make_package.py --out dist/sumeragi-native-plus-windows
    ```
 
-To update an existing release folder without disturbing your `game\`, `user\`, or `out\` cache:
-```powershell
-python packaging/basara4/make_package.py --out G:/basara4-windows --update
-```
+4. Validate release compliance:
+   ```powershell
+   python packaging/validate_release.py --path dist/sumeragi-native-plus-windows
+   ```
 
 ---
 
@@ -225,14 +227,12 @@ python tools/audio_log_summary.py user/audio_debug.log
 
 ---
 
-## Credits & Acknowledgments
-
-This project is built upon open-source foundations and prior reverse-engineering efforts:
+## Credits & Upstream Lineage
 
 | Project / Component | Author(s) | Role & Contribution | License |
 |---|---|---|---|
+| **Sumeragi Native+** | **[i7Exceed](https://github.com/i7Exceed)** | Project maintainer, original visual identity, separate update overlay, local DLC subsystem (Stage 2), compliance validator, dual-binary compatibility, card launcher UI | GPL-2.0+ |
 | **Basara 4 PC Port** | **Razz** | Port author, reverse-engineering of Basara 4 system contracts (`runtime_offline.c`), software Ngs2 implementation, LibAtrac9 hardening, custom launcher GUI, frame-limiter patch, pad mapper, packaging | GPL-2.0+ |
-| **Game Update, Local DLC & UI Enhancements** | **[zhiidan](https://github.com/zhiidan)** | Game update overlay subsystem, local DLC discovery & mount pipeline (Stage 2), dynamic version/SFO detection, card-based launcher UI redesign, pad mapper integration | GPL-2.0+ |
 | **SpartanPort** (`gow3_pc`) | **Felipe Prado** | Upstream base native runtime architecture, probe loader, and core harness | GPL-2.0+ |
 | **bloodborne_pc** | **Supermedo** & **deadinside28** | Foundational PS4 native PC porting methodology and runtime libraries | GPL-2.0+ |
 | **shadPS4** | **shadPS4 Team** | Translated GPU core, shader translation to SPIR-V/Vulkan, NID table (`aerolib`) | GPL-2.0+ |
@@ -245,19 +245,9 @@ Full upstream notices, legal attributions, and copyright declarations are docume
 
 ---
 
-## Community & Socials
-
-Join our community for discussions, troubleshooting, updates, and more:
-
-- **Discord Community**: [https://discord.gg/UBZc57bBMa](https://discord.gg/UBZc57bBMa) (general community & gaming)
-- **TikTok**: [@razzconnect](https://www.tiktok.com/@razzconnect) ([https://www.tiktok.com/@razzconnect](https://www.tiktok.com/@razzconnect)) — development progress & updates
-
----
-
 ## License
 
 This project is licensed under the **GNU General Public License v2.0 or later** ([LICENSE](LICENSE)).
-
-- All modifications, reverse-engineered engine contracts, custom audio graph code, and launcher source code created by Razz are Copyright (C) 2026 Razz under GPL-2.0-or-later.
-- Game update overlay subsystem, local DLC discovery & mounting pipeline, dynamic SFO inspection, launcher UI overhaul, and tooling additions created by [zhiidan](https://github.com/zhiidan) are Copyright (C) 2026 zhiidan under GPL-2.0-or-later.
-- Third-party components and submodules retain their respective authors' licenses as described in `NOTICE.md` and `third_party/`.
+- Sumeragi Native+ contributions, original vector identity, update overlay, and local DLC subsystems are Copyright (C) 2026 i7Exceed under GPL-2.0-or-later.
+- Basara 4 PC runtime modifications, custom audio graph, and launcher additions created by Razz are Copyright (C) 2026 Razz under GPL-2.0-or-later.
+- Upstream and third-party components retain their respective licenses as detailed in [NOTICE.md](NOTICE.md) and [docs/COPYRIGHT_AND_LICENSE_AUDIT.md](docs/COPYRIGHT_AND_LICENSE_AUDIT.md).

@@ -1,5 +1,5 @@
-/* Play SpartanPort.exe: starts the game with the settings saved by the launcher, without opening
- * the launcher (it runs `SpartanPort.exe --play` from its own folder and waits for it, so Steam
+/* Play Sumeragi Native+.exe: starts the game with the settings saved by the launcher, without opening
+ * the launcher (it runs the launcher executable with --play from its own folder and waits for it, so Steam
  * and other front ends see the game running). Extra arguments are passed on. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -15,14 +15,32 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int
     wchar_t *slash = wcsrchr(dir, L'\\');
     if (slash)
         *slash = 0;
-    swprintf(exe, 32768, L"%ls\\SpartanPort.exe", dir);
+
+    static const wchar_t *const candidates[] = {
+        L"Sumeragi Native+.exe",
+        L"Sengoku Basara 4.exe",
+        L"SpartanPort.exe"
+    };
+
+    int found = 0;
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i) {
+        swprintf(exe, 32768, L"%ls\\%ls", dir, candidates[i]);
+        if (GetFileAttributesW(exe) != INVALID_FILE_ATTRIBUTES) {
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        swprintf(exe, 32768, L"%ls\\Sumeragi Native+.exe", dir);
+    }
+
     swprintf(line, 32768, L"\"%ls\" --play%ls%ls", exe, arguments && *arguments ? L" " : L"",
              arguments ? arguments : L"");
 
     STARTUPINFOW startup = {.cb = sizeof(startup)};
     PROCESS_INFORMATION process;
     if (!CreateProcessW(exe, line, NULL, NULL, FALSE, 0, NULL, dir, &startup, &process)) {
-        MessageBoxW(NULL, L"SpartanPort.exe was not found next to this file.", L"SpartanPort",
+        MessageBoxW(NULL, L"Sumeragi Native+.exe was not found next to this file.", L"Sumeragi Native+",
                     MB_OK | MB_ICONERROR);
         return 1;
     }

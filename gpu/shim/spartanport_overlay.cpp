@@ -343,8 +343,8 @@ void BasaraTab() {
                           int(elf.AppVer().size()), elf.AppVer().data());
         }
         InfoRow("Game", text);
-        InfoRow("Runtime", "Basara 4 PC \xC2\xB7 by Razz");
-        InfoRow("Built on", "SpartanPort (GPL-2.0+) \xC2\xB7 shadPS4 video core");
+        InfoRow("Runtime", "Sumeragi Native+ \xC2\xB7 by i7Exceed");
+        InfoRow("Built on", "Basara 4 PC (Razz) \xC2\xB7 SpartanPort \xC2\xB7 shadPS4");
         ImGui::EndTable();
     }
     DisabledText("Free software under the GNU GPL v2 or later. The credits are in NOTICE.md.");
@@ -519,7 +519,7 @@ void Menu() {
                              ImGuiCond_Appearing);
     bool keep_open = true;
     static const std::string heading =
-        std::string("Sengoku Basara 4 Sumeragi  \xC2\xB7  Basara 4 PC by Razz") +
+        std::string("Sengoku Basara 4 Sumeragi  \xC2\xB7  Sumeragi Native+ by i7Exceed") +
         PadText("  (Insert / R3+L2)", "  (Insert / RS+LT)", "  (Insert / RS+ZL)");
     if (!ImGui::Begin(heading.c_str(), &keep_open, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
@@ -539,7 +539,7 @@ void Menu() {
     }
     const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetTextLineHeightWithSpacing() * 2.0f;
     if (ImGui::BeginTabBar("##tabs")) {
-        static const char* const tabs[TabCount] = {"Basara 4", "Image", "Performance", "Overlay"};
+        static const char* const tabs[TabCount] = {"Sumeragi+", "Image", "Performance", "Overlay"};
         for (int tab = 0; tab < TabCount; ++tab) {
             const ImGuiTabItemFlags flags = requested_tab == tab ? ImGuiTabItemFlags_SetSelected : 0;
             if (!ImGui::BeginTabItem(Tr(tabs[tab]), nullptr, flags)) {
@@ -570,7 +570,7 @@ void Menu() {
 
     ImGui::Separator();
     ImGui::PushTextWrapPos(0.0f);
-    DisabledText(footer_help ? footer_help : PadText("L1 / R1 or Q / E: switch tabs. Settings are saved in basara4.ini.", "LB / RB or Q / E: switch tabs. Settings are saved in basara4.ini.", "L / R or Q / E: switch tabs. Settings are saved in basara4.ini."));
+    DisabledText(footer_help ? footer_help : PadText("L1 / R1 or Q / E: switch tabs. Settings are saved in sumeragi.ini.", "LB / RB or Q / E: switch tabs. Settings are saved in sumeragi.ini.", "L / R or Q / E: switch tabs. Settings are saved in sumeragi.ini."));
     ImGui::PopTextWrapPos();
     if (const int changes = RestartChanges()) {
         ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), Tr("%d change%s apply%s the next time you start the game."),

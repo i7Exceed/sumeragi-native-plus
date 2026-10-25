@@ -15,8 +15,8 @@ try:
     import tkinter as tk
 except ImportError:  # pragma: no cover
     tk = None
-OWN_ICO = ROOT / 'launcher' / 'spartanport.ico'
-OWN_PNG = ROOT / 'launcher' / 'spartanport.png'
+OWN_ICO = ROOT / 'launcher' / 'sumeragi.ico' if (ROOT / 'launcher' / 'sumeragi.ico').is_file() else ROOT / 'launcher' / 'spartanport.ico'
+OWN_PNG = ROOT / 'launcher' / 'sumeragi.png' if (ROOT / 'launcher' / 'sumeragi.png').is_file() else ROOT / 'launcher' / 'spartanport.png'
 WM_GETICON, ICON_SMALL, ICON_BIG = 0x7F, 0, 1
 
 

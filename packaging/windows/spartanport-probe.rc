@@ -1,7 +1,7 @@
 #include <winuser.h>
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "spartanport-probe.manifest"
 // The first icon is the one Explorer and the game window show.
-1 ICON "../../launcher/basara4.ico"
+1 ICON "../../launcher/sumeragi.ico"
 
 #include <winver.h>
 VS_VERSION_INFO VERSIONINFO
@@ -14,14 +14,14 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "Razz"
-      VALUE "FileDescription", "Basara 4 PC core"
+      VALUE "CompanyName", "i7Exceed"
+      VALUE "FileDescription", "Sumeragi Native+ runtime core"
       VALUE "FileVersion", "1.0.0.0"
-      VALUE "InternalName", "basara4-core"
-      VALUE "OriginalFilename", "basara4-core.exe"
-      VALUE "ProductName", "Basara 4 PC"
+      VALUE "InternalName", "sumeragi-core"
+      VALUE "OriginalFilename", "sumeragi-core.exe"
+      VALUE "ProductName", "Sumeragi Native+"
       VALUE "ProductVersion", "1.0.0"
-      VALUE "LegalCopyright", "GPL-2.0-or-later. Based on SpartanPort / shadPS4; see NOTICE.md"
+      VALUE "LegalCopyright", "GPL-2.0-or-later. Sumeragi Native+ by i7Exceed. Based on Basara 4 Native PC (Razz), SpartanPort, and shadPS4; see NOTICE.md"
     END
   END
   BLOCK "VarFileInfo"

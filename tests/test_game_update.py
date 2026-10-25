@@ -19,7 +19,7 @@ from prepare import sfo
 
 # Put launcher on sys.path for launcher integration tests
 sys.path.insert(0, str(ROOT / 'launcher'))
-import basara4_launcher  # noqa: E402
+import sumeragi_launcher as basara4_launcher  # noqa: E402
 
 
 def write(path, content):
@@ -394,7 +394,10 @@ class LauncherAndPackageIntegrationTests(unittest.TestCase):
             self.assertEqual(loaded['update_dir'], 'D:/Games/update')
 
     def test_make_package_includes_runtime_scripts(self):
-        sys.path.insert(0, str(ROOT / 'packaging/basara4'))
+        pkg_dir = ROOT / 'packaging/sumeragi'
+        if not pkg_dir.is_dir():
+            pkg_dir = ROOT / 'packaging/basara4'
+        sys.path.insert(0, str(pkg_dir))
         import make_package
         for script in ('game_update.py', 'mods.py', 'patches.py'):
             self.assertIn(script, make_package.PREPARE_SCRIPTS)

@@ -27,17 +27,22 @@ MINGW*|MSYS*)
         grep -v '^\[' out/gpu-build.log | tail -40 >&2
         echo 'Build failed (full log: out/gpu-build.log)' >&2; exit 1
     fi
-    cp out/gpu/basara4-core.exe out/gpu/spartanport-gpu-capabilities.exe out/gpu/spartanport-play.exe out/
+    cp out/gpu/basara4-core.exe out/sumeragi-core.exe
+    cp out/gpu/basara4-core.exe out/basara4-core.exe
+    cp out/gpu/spartanport-gpu-capabilities.exe out/gpu/spartanport-play.exe out/
     cp out/gpu/basara4-core.exe out/spartanport-probe.exe
-    clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole -o out/basara4-pad-mapper.exe
+    clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole -o out/sumeragi-pad-mapper.exe
+    cp out/sumeragi-pad-mapper.exe out/basara4-pad-mapper.exe
     mkdir -p bin
+    cp out/sumeragi-core.exe bin/sumeragi-core.exe
     cp out/basara4-core.exe bin/basara4-core.exe
+    cp out/sumeragi-pad-mapper.exe bin/sumeragi-pad-mapper.exe
     cp out/basara4-pad-mapper.exe bin/basara4-pad-mapper.exe
     if [[ -f $msys2_root/clang64/bin/SDL3.dll ]]; then
         cp "$msys2_root/clang64/bin/SDL3.dll" bin/
         cp "$msys2_root/clang64/bin/SDL3.dll" out/
     fi
-    echo "Built $PWD/out/basara4-core.exe and $PWD/out/basara4-pad-mapper.exe"
+    echo "Built $PWD/out/sumeragi-core.exe ($PWD/out/basara4-core.exe) and gamepad mapper"
     if [[ ${1:-} == --test ]]; then
         clang -std=c11 -O2 -g -Wall -Wextra -pthread -I. -Isrc tests/test_dlc_runtime.c -o out/dlc-runtime-test.exe
         ./out/dlc-runtime-test.exe

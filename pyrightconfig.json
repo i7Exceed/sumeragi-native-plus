@@ -8,6 +8,7 @@
   "extraPaths": [
     "scripts",
     "launcher",
+    "packaging/sumeragi",
     "packaging/basara4",
     "tests"
   ]

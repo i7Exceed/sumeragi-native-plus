@@ -1,60 +1,85 @@
-# Sengoku Basara 4 Sumeragi PC Port (Basara 4 PC)
+# Sumeragi Native+
 
 <div align="center">
 
-![C++](https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C17-00599C?logo=c%2B%2B)
-![Python](https://img.shields.io/badge/Launcher-Python%203.11-3776AB?logo=python)
-![Vulkan](https://img.shields.io/badge/Graphics-Vulkan%201.3-E10019?logo=vulkan)
-![License](https://img.shields.io/badge/License-GPL%20v2.0%2B-blue.svg)
-[![Discord](https://img.shields.io/badge/Discord-Gabung%20Komunitas-5865F2?logo=discord&logoColor=white)](https://discord.gg/UBZc57bBMa)
-[![TikTok](https://img.shields.io/badge/TikTok-@razzconnect-000000?logo=tiktok&logoColor=white)](https://www.tiktok.com/@razzconnect)
+<img src="assets/sumeragi_logo.svg" alt="Logo Sumeragi Native+" width="560">
+
+<br><br>
+
+*The Sumeragi experience, evolved.*
+
+[![Build & Compliance](https://img.shields.io/badge/Build-Lolos-2e7d32?logo=github-actions&logoColor=white)](#build-dari-source-code)
+[![Bahasa](https://img.shields.io/badge/Bahasa-C%2B%2B20%20%2F%20C17-00599C?logo=c%2B%2B)](#arsitektur-teknis)
+[![Launcher](https://img.shields.io/badge/Launcher-Python%203.11%2B-3776AB?logo=python)](#pengaturan-launcher)
+[![Grafis](https://img.shields.io/badge/Grafis-Vulkan%201.3-E10019?logo=vulkan)](#fitur-utama)
+[![Lisensi](https://img.shields.io/badge/Lisensi-GPL%20v2.0%2B-c9a24a.svg)](LICENSE)
+[![Repositori](https://img.shields.io/badge/GitHub-i7Exceed%2Fsumeragi--native--plus-1c1916?logo=github)](https://github.com/i7Exceed/sumeragi-native-plus)
 
 </div>
 
+---
+
 [English](README.md) | **Bahasa Indonesia**
 
-Port PC native open-source dan launcher untuk **Sengoku Basara 4 Sumeragi** (PlayStation 4, CUSA01159) untuk Windows 10/11.
+**Sumeragi Native+** adalah port PC native dan launcher modern independen berbasis komunitas untuk **Sengoku Basara 4 Sumeragi** (PlayStation 4, `CUSA01159`) pada sistem operasi Windows 10/11 64-bit.
 
-Kode x86-64 asli game berjalan langsung di prosesor PC Anda tanpa emulator (tanpa interpreter maupun JIT). Library sistem PlayStation 4 diimplementasikan ulang fungsi demi fungsi ke dalam bahasa C/C++, dan instruksi GPU diterjemahkan langsung ke Vulkan 1.3 secara real-time.
+Kode instruksi mesin x86-64 asli dari game dieksekusi langsung pada prosesor PC tanpa beban emulasi atau interpreter. Library sistem PlayStation 4 diimplementasikan ulang fungsi demi fungsi ke dalam bahasa C native, dan perintah render GPU serta shader GCN diterjemahkan langsung ke Vulkan 1.3 secara real-time.
 
-> **Tidak menyertakan file game berhak cipta.** Anda wajib menyediakan dump game hasil ekstrak legal dari konsol PlayStation 4 milik sendiri (teruji: CUSA01159).
+---
+
+> ### ⚠️ Pernyataan Penyangkalan Hukum & Kepatuhan Hak Cipta
 >
-> Proyek ini adalah riset open-source independen yang dikembangkan dan di-reverse-engineer oleh **Razz**.
-> Tidak berafiliasi dengan, didukung oleh, atau terkait dengan Capcom maupun Sony Interactive Entertainment.
-> "Sengoku Basara" adalah merek dagang milik Capcom Co., Ltd. "PlayStation" adalah merek dagang milik Sony Interactive Entertainment.
+> - **Pengembangan Komunitas Independen**: Sumeragi Native+ adalah proyek sumber terbuka independen yang dikembangkan dan dikelola oleh **i7Exceed**, dibangun di atas fondasi kontribusi terdahulu oleh **Razz** (*Basara 4 Native PC*), **Felipe Prado** (*SpartanPort*), **Supermedo** & **deadinside28** (*bloodborne_pc*), serta **Tim shadPS4**.
+> - **Tidak Terafiliasi Secara Resmi**: Proyek ini **TIDAK** berafiliasi dengan, didukung oleh, disponsori oleh, atau merupakan produk resmi dari **Capcom Co., Ltd.**, **Sony Interactive Entertainment Inc.**, maupun anak perusahaan terkait.
+> - **Identifikasi Kompatibilitas Nominatif**: Penyebutan judul game (*"Sengoku Basara 4 Sumeragi"*), nama platform (*"PlayStation 4"*, *"PS4"*), dan merek dagang perusahaan semata-mata digunakan secara faktual sebagai rujukan teknis untuk mengidentifikasi kompatibilitas perangkat lunak.
+> - **NOL File Game Berhak Cipta yang Didistribusikan**: Repositori ini dan arsip rilis resminya **sama sekali tidak mendistribusikan** dump game, executable terdekripsi, kunci enkripsi firmware konsol, file lisensi konsol (`.rif`/`.rap`), paket DLC, tekstur, audio, model 3D, maupun aset media game berhak cipta.
+> - **Konten Legal Milik Pengguna**: Pengguna wajib mengekstrak dan menyediakan salinan file game legal hasil dump dari konsol PlayStation 4 milik sendiri.
+> - **Tanpa Jaminan Tambahan**: Fitur eksperimental dan pembuka batasan performa disediakan *"sebagaimana adanya"* di bawah lisensi GNU General Public License v2.0 (atau lebih baru), tanpa jaminan apa pun di luar ketentuan lisensi tersebut.
+>
+> Rincian lengkap audit kepatuhan, lisensi komponen, dan asal-usul kode dapat dibaca pada [docs/COPYRIGHT_AND_LICENSE_AUDIT.md](docs/COPYRIGHT_AND_LICENSE_AUDIT.md) dan [NOTICE.md](NOTICE.md).
 
 ---
 
 ## Daftar Isi
 
+- [Identitas Visual & Desain](#identitas-visual--desain)
 - [Fitur Utama](#fitur-utama)
 - [Spesifikasi Sistem](#spesifikasi-sistem)
-- [Cara Download & Menjalankan](#cara-download--menjalankan)
+- [Panduan Singkat: Unduh & Mainkan](#panduan-singkat-unduh--mainkan)
 - [Pengaturan Launcher](#pengaturan-launcher)
-- [Menu In-Game & Hotkey](#menu-in-game--hotkey)
-- [Dukungan Controller](#dukungan-controller)
-- [Arsitektur Teknis (Cara Kerja)](#arsitektur-teknis-cara-kerja)
+- [Menu In-Game & Tombol Cepat](#menu-in-game--tombol-cepat)
+- [Konfigurasi Controller](#konfigurasi-controller)
+- [Arsitektur Teknis](#arsitektur-teknis)
 - [Build dari Source Code](#build-dari-source-code)
+- [Paket Rilis & Validasi Kepatuhan](#paket-rilis--validasi-kepatuhan)
 - [Troubleshooting & Log](#troubleshooting--log)
-- [Kredit & Kontributor](#kredit--kontributor)
-- [Komunitas & Media Sosial](#komunitas--media-sosial)
+- [Kredit & Garis Keturunan Upstream](#kredit--garis-keturunan-upstream)
 - [Lisensi](#lisensi)
+
+---
+
+## Identitas Visual & Desain
+
+Sumeragi Native+ menghadirkan identitas visual orisinal dengan estetika desktop technical bernuansa klasik Jepang:
+- **Palet Warna**: Dark charcoal (`#12100e`, `#1c1916`), Warm ivory (`#eadfcb`), Muted antique gold (`#c9a24a`), dan Aksen Lacquer crimson (`#a93226`).
+- **Ikon Vektor Orisinal**: Gambar vektor SVG orisinal (`assets/sumeragi_icon.svg` dan `assets/sumeragi_logo.svg`) yang memadukan lambang klan samurai (*kamon*) geometris abstrak tanpa menggunakan atau menjiplak aset hak cipta Capcom maupun Sony.
+- **Ikon Windows Multi-Resolusi**: Ikon aplikasi Windows (`launcher/sumeragi.ico`) dengan dukungan resolusi 16px hingga 256px dengan transparansi alfa bersih.
 
 ---
 
 ## Fitur Utama
 
-- **Eksekusi CPU 100% Native**: Tanpa emulasi CPU. Instruksi x86-64 binary game berjalan langsung di core prosesor PC dengan latensi dan overhead minimal.
-- **Audio Engine Software Ngs2 Kustom**: Implementasi penuh sound graph Ngs2 untuk menangani streaming multi-channel ATRAC9, decoding LibAtrac9, sintesis suara, pemutaran PCM, dan submixing.
+- **Eksekusi CPU 100% Native**: Tanpa emulasi CPU, tanpa kompilasi JIT, dan tanpa lag. Instruksi x86-64 binary game berjalan langsung di core prosesor PC dengan performa maksimal.
+- **Sistem Overlay Update Game Terpisah**: Pasang dan mainkan update game (v1.01, v1.02) secara non-destruktif tanpa menyentuh atau merusak folder dump game dasar.
+- **Dukungan DLC Lokal & Add-on (Tahap 2)**: Deteksi otomatis, validasi aman, manifest binary terversi (`B4ADD001`), enumerasi AppContent (`sceAppContentGetAddcontInfoList`), dan mounting guest (`/addcont0` ... `/addcont15`) untuk konten DLC lokal tanpa bypass lisensi palsu.
+- **Kompatibilitas Binary Ganda**: Resolusi dan eksekusi mulus untuk file biner kanonikal (`sumeragi-core.exe`, `sumeragi-pad-mapper.exe`) maupun biner warisan (`basara4-core.exe`, `basara4-pad-mapper.exe`), serta migrasi otomatis konfigurasi `sumeragi.ini` / `basara4.ini`.
+- **Software Ngs2 Audio Engine Kustom**: Implementasi sound graph Ngs2 untuk menangani streaming multi-channel ATRAC9, decoding LibAtrac9, sintesis suara, pemutaran PCM, dan submixing.
 - **Translasi Grafis Vulkan 1.3**: Menerjemahkan shader AMD GCN PS4 ke SPIR-V / Vulkan secara langsung dengan performa tinggi.
-- **Launcher Resmi Basara 4 PC**: Dibuat khusus oleh Razz dengan tema visual Sengoku, pilihan resolusi, mode layar, anisotropic filtering, FSR 1 upscaling, dan kalibrasi controller.
-- **Overlay Update Game Terpisah**: Pasang dan mainkan update game (misal v1.01, v1.02) secara non-destruktif tanpa mengubah folder dump dasar.
-- **Dukungan DLC Lokal & Add-on (Tahap 2)**: Deteksi otomatis, validasi aman, enumerasi AppContent, dan mounting guest (`/addcont0` ... `/addcont15`) untuk konten DLC lokal tanpa bypass lisensi palsu.
-- **Patch FPS Unlimited**: Scanner signature memory otomatis (`basara4_patches.py`) yang mematikan pembatas FPS bawaan game (bisa main di 90, 120, 144, 165, 240, hingga unlimited FPS).
+- **FPS Unlimited & High-Refresh Rate**: Patch memori otomatis (`basara4_patches.py`) yang mematikan pembatas FPS bawaan game (bisa main di 90, 120, 144, 165, 240, hingga unlimited FPS).
 - **AMD FidelityFX Super Resolution (FSR 1)** & **RCAS Sharpening**: Upscaling bersih ke 1440p atau 4K.
-- **Anisotropic Filtering (hingga 16x)**: Mempertajam tekstur lantai, tanah, dan arena pertempuran dari sudut kamera miring.
-- **Pipeline Relokasi & Binding Otomatis**: Skrip otomatis (`prepare.py`, `link_libc.py`, `link_modules.py`, `content_profile.py`) yang menyiapkan executable dari dump tanpa merusak file asli.
-- **Universal Gamepad Mapper**: Tool pemetaan berbasis SDL3 (`basara4-pad-mapper.exe`) untuk stik DirectInput, USB generik, maupun layout Xbox/PlayStation.
+- **Anisotropic Filtering (hingga 16x)**: Mempertajam tekstur arena pertempuran dan lantai dari sudut kamera miring.
+- **Launcher Modern Berbasis Kartu**: Antarmuka modern dengan bilah sisi responsif, deteksi versi/SFO otomatis, pemilih DLC, dan alat konfigurasi gamepad terpadu.
+- **Validator Rilis Otomatis**: Skrip validasi statis (`packaging/validate_release.py`) untuk memastikan tidak ada aset game ilegal atau cache yang masuk ke paket distribusi maupun pelacakan Git.
 
 ---
 
@@ -63,21 +88,21 @@ Kode x86-64 asli game berjalan langsung di prosesor PC Anda tanpa emulator (tanp
 | Komponen | Minimum | Rekomendasi |
 |---|---|---|
 | **Sistem Operasi** | Windows 10 64-bit (1903 ke atas) | Windows 10/11 64-bit |
-| **Prosesor (CPU)** | 64-bit dengan AVX (Intel Sandy Bridge 2011+, AMD FX) | 6 Core / 12 Thread (Intel Gen 10+ / AMD Ryzen 3000+) |
-| **Kartu Grafis (GPU)** | GPU mendukung Vulkan 1.3 (GTX 1060 / RX 580) | RTX 2060 / RX 6600 atau lebih baru |
-| **RAM** | 8 GB RAM | 16 GB RAM |
-| **Penyimpanan** | ~20 GB ruang kosong (SSD disarankan) | NVMe SSD |
-| **File Game** | Dump game Sengoku Basara 4 Sumeragi (`CUSA01159`) | Dump dengan update terpasang |
+| **Prosesor (CPU)** | 64-bit x86-64 dengan AVX / AVX2 (Intel Core Gen 4+ / AMD Ryzen) | 6 Core / 12 Thread modern (Intel Gen 10+ / Ryzen 3000+) |
+| **Kartu Grafis (GPU)** | GPU mendukung Vulkan 1.3 (GTX 1060 6GB / RX 580) | RTX 2060 / RX 6600 atau lebih baru |
+| **RAM** | 8 GB RAM | 16 GB RAM (dual-channel) |
+| **Penyimpanan** | ~20 GB ruang kosong (SSD disarankan) | NVMe SSD berkecepatan tinggi |
+| **File Game** | Dump game legal Sengoku Basara 4 Sumeragi (`CUSA01159`) | Dump dengan update terpasang |
 
 ---
 
-## Cara Download & Menjalankan
+## Panduan Singkat: Unduh & Mainkan
 
 ### 1. Unduh Paket
-Unduh arsip terbaru `basara4-windows.zip` dari halaman [Releases](https://github.com/razzconnect/basara4-native-pc/releases) lalu ekstrak ke folder pilihan Anda (misal `C:\Games\basara4-windows`).
+Unduh arsip rilis terbaru `sumeragi-native-plus-windows.zip` dari halaman GitHub Releases, lalu ekstrak ke folder pilihan Anda (misal `C:\Games\SumeragiNativePlus`).
 
 ### 2. Masukkan Dump Game
-Salin folder dump game PS4 Anda (yang berisi `eboot.bin`, `sce_module\`, dan `sce_sys\`) ke dalam folder `game\`, atau klik tombol **Browse** di launcher untuk memilih lokasinya.
+Salin folder dump game PS4 legal Anda (yang berisi `eboot.bin`, `sce_module\`, dan `sce_sys\`) ke dalam folder `game\`, atau klik tombol **Browse** di launcher untuk memilih lokasinya di disk Anda.
 
 ### 3. (Opsional) Masukkan Folder Update & DLC
 - **Update Folder**: Pilih folder update yang sudah diekstrak (misal v1.02) pada kolom **Update Folder**.
@@ -97,137 +122,132 @@ Salin folder dump game PS4 Anda (yang berisi `eboot.bin`, `sce_module\`, dan `sc
   ```
 
 ### 4. Jalankan Game
-1. Buka **`Sengoku Basara 4.exe`**.
-2. Atur resolusi, mode layar, dan batas FPS sesuai monitor Anda.
-3. Klik **PLAY**.
-   - *Catatan:* Boot pertama akan menyiapkan image binary ke folder `out\` (memakan waktu sekitar 30–60 detik). Boot berikutnya langsung jalan instan.
-4. Jika ingin langsung membuka game dengan konfigurasi terakhir tanpa membuka GUI launcher, gunakan **`Play Sengoku Basara 4.cmd`**.
+1. Buka **`Sumeragi Native+.exe`**.
+2. Tekan **PLAY**. Peluncuran pertama akan menyiapkan game image dari `eboot.bin` (~1 menit) ke folder `out\`.
+3. Untuk langsung membuka game dengan konfigurasi terakhir tanpa membuka GUI launcher, klik **`Play Sumeragi Native+.cmd`**.
 
 ---
 
 ## Pengaturan Launcher
 
-| Opsi | Pilihan | Penjelasan |
-|---|---|---|
-| **Display Mode** | Windowed, Borderless Fullscreen, Exclusive Fullscreen | Mode tampilan jendela game. |
-| **Window Size** | Native (1080p), 720p, 900p, 1440p, 1800p, 4K | Resolusi jendela output (game merender internal di 1080p). |
-| **Upscaling** | Off, FSR 1 | Upscaling AMD FidelityFX Super Resolution ke resolusi target. |
-| **Sharpening (RCAS)** | Aktif / Nonaktif | Filter penajam gambar Contrast Adaptive Sharpening. |
-| **Anisotropic Filtering**| Off, 2x, 4x, 8x, 16x | Kualitas filter tekstur untuk sudut pandang miring. |
-| **Frame Limit** | 60 (Default), 90, 120, 144, 165, 240, Unlimited | Membuka cap FPS bawaan game menggunakan signature patch. |
-| **VSync** | Aktif / Nonaktif | Sinkronisasi frame rate dengan refresh rate monitor. |
-| **Audio Debug Log** | Aktif / Nonaktif | Mencatat detail alokasi suara Ngs2 ke `user\audio_debug.log`. |
+Launcher menyediakan kendali grafis dan runtime terperinci:
+- **Mode Layar**: Windowed, Borderless Fullscreen, Exclusive Fullscreen.
+- **Ukuran Layar**: Native (1080p), 720p, 900p, 1440p, 1800p, 4K.
+- **Upscaling**: Off, atau AMD FidelityFX Super Resolution 1 (FSR 1).
+- **Pembatas Frame Rate**: 60 (default), 90, 120, 144, 165, 240, atau Unlimited.
+- **Peningkatan Grafis**: VSync, ketajaman RCAS, anisotropic filtering (2x hingga 16x).
+- **Alat Controller**: Pemetaan penuh, pemetaan analog saja, atau reset mapping tersimpan.
+
+Pengaturan disimpan secara otomatis di `user\sumeragi.ini` (dengan migrasi otomatis dari `basara4.ini` / `spartanport.ini`).
 
 ---
 
-## Menu In-Game & Hotkey
+## Menu In-Game & Tombol Cepat
 
-- **Insert** (Keyboard) atau **R3 + L2** (Gamepad): Membuka overlay menu dalam game (pengaturan FSR, Anisotropic filtering, status stik, dan About).
-- **F12**: Mengambil screenshot (disimpan ke folder `user\`).
-- **L1 / R1** (atau **Q / E**): Berpindah antar tab menu.
-
----
-
-## Dukungan Controller
-
-- **XInput & SDL3**: Stik Xbox One/Series, DualShock 4, DualSense, dan Nintendo Switch Pro langsung terbaca otomatis.
-- **Stik Generik / DirectInput**: Klik **Map controller** di launcher untuk merekam tombol dan analog stik lewat program `basara4-pad-mapper.exe`. Hasil tersimpan di `user\gamepad_mapping.txt`.
+Buka menu konfigurasi in-game saat permainan sedang berlangsung:
+- **Keyboard**: Tekan `Insert`.
+- **Controller**: Tekan `R3 + L2` (PlayStation) atau `RS + LT` (Xbox).
+- **Navigasi Tab**: Gunakan `L1 / R1` atau `Q / E`.
+- **Screenshot**: Tekan `F12` (tersimpan di `user\screenshots\`).
 
 ---
 
-## Arsitektur Teknis (Cara Kerja)
+## Arsitektur Teknis
 
-1. **Eksekusi Native CPU**: Berbeda dengan emulator (seperti RPCS3), port ini tidak membutuhkan penerjemah CPU karena arsitektur prosesor PS4 sama persis dengan PC (x86-64).
-2. **Reverse Engineering Kontrak Sistem (`src/runtime_offline.c`)**: Engine MT Framework Capcom untuk Basara 4 membutuhkan sekitar 130 syscall OS PS4 yang sebelumnya belum ada di SpartanPort. Semuanya diimplementasikan ulang secara native oleh Razz (kernel event flags, PlayGo, AppContent, dialog box, dan offline network stubs).
-3. **Sound Graph Ngs2 Kustom (`src/runtime_audio.c`)**: Seluruh audio game diproses melalui sistem Ngs2 buatan sendiri yang mendukung dekompresi ATRAC9 multi-channel, pengaturan loop point, pitch, dan streaming ring buffer.
-4. **Hardening LibAtrac9**: Perbaikan keamanan memori pada decoder LibAtrac9 (`huffCodes.c`, `unpack.c`, `band_extension.c`) agar tidak crash jika membaca audio stream yang tidak sempurna.
-5. **Memory Signature Patching**: Engine limiter di-bypass langsung pada memori sebelum proses boot berlangsung tanpa mengubah file asli game.
+Sumeragi Native+ menggunakan arsitektur modular runtime native:
+
+```mermaid
+graph TD
+    Launcher["Launcher Sumeragi Native+<br/>(launcher/sumeragi_launcher.py)"]
+    Prep["Pipeline Persiapan<br/>(prepare.py, dlc.py, game_update.py)"]
+    Loader["Runtime Loader Core<br/>(sumeragi-core.exe / probe.c)"]
+    GuestELF["Kode Game Asli (x86-64)<br/>(boot-linked.bin)"]
+    ShimSys["Kontrak Sistem Native<br/>(runtime_offline.c, runtime_content.c)"]
+    VulkanGPU["Video Core & Shim Vulkan<br/>(libspartanportgpu / shadPS4)"]
+    AudioCore["Software Ngs2 Sound Graph<br/>(LibAtrac9 + AudioOut)"]
+
+    Launcher --> Prep
+    Prep --> Loader
+    Loader --> GuestELF
+    GuestELF --> ShimSys
+    GuestELF --> VulkanGPU
+    GuestELF --> AudioCore
+```
 
 ---
 
 ## Build dari Source Code
 
-### Kebutuhan
+### Prasyarat
+- Windows 10/11 64-bit
+- [MSYS2](https://www.msys2.org/) dengan environment `CLANG64`:
+  ```bash
+  pacman -S --needed mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-cmake \
+      mingw-w64-clang-x86_64-ninja mingw-w64-clang-x86_64-pkg-config \
+      mingw-w64-clang-x86_64-vulkan-loader mingw-w64-clang-x86_64-vulkan-headers \
+      mingw-w64-clang-x86_64-sdl3 mingw-w64-clang-x86_64-ffmpeg
+  ```
+- Windows Python 3.11+ dengan modul `pyinstaller` dan `pillow`.
 
-1. **MSYS2** dengan environment **CLANG64**:
-   ```bash
-   pacman -S --needed base-devel mingw-w64-clang-x86_64-toolchain \
-       mingw-w64-clang-x86_64-cmake mingw-w64-clang-x86_64-ninja \
-       mingw-w64-clang-x86_64-vulkan-headers mingw-w64-clang-x86_64-vulkan-loader \
-       mingw-w64-clang-x86_64-sdl3 mingw-w64-clang-x86_64-ffmpeg \
-       mingw-w64-clang-x86_64-glslang mingw-w64-clang-x86_64-pkg-config
-   ```
-2. **Python 3.10+** (Windows) dengan `PyInstaller` dan `Pillow`:
-   ```powershell
-   python -m pip install pyinstaller pillow
-   ```
-
-### Langkah Kompilasi
-
+### Tahapan Kompilasi
 1. Clone repositori:
    ```bash
-   git clone --recursive https://github.com/razzconnect/basara4-native-pc.git
-   cd basara4-pc
+   git clone --recursive https://github.com/i7Exceed/sumeragi-native-plus.git
+   cd sumeragi-native-plus
    ```
-
-2. Jalankan build di terminal **MSYS2 CLANG64**:
+2. Buka terminal MSYS2 CLANG64 shell, jalankan:
    ```bash
    bash build.sh
    ```
-   *Perintah ini menghasilkan `out/gpu/basara4-core.exe`.*
+   *Jalankan pengujian:* `bash build.sh --test`
 
-3. Rakit folder rilis menggunakan PowerShell:
+3. Di PowerShell, bangun paket rilis Windows:
    ```powershell
-   python packaging/basara4/make_package.py --out dist/basara4-windows
+   python packaging/sumeragi/make_package.py --out dist/sumeragi-native-plus-windows
+   ```
+
+4. Uji kepatuhan paket rilis:
+   ```powershell
+   python packaging/validate_release.py --path dist/sumeragi-native-plus-windows
    ```
 
 ---
 
 ## Troubleshooting & Log
 
-Jika menemukan bug atau crash, sertakan berkas log dari folder `user\`:
-- **`user\last_run.log`**: Log runtime utama (inisialisasi, compile shader Vulkan, crash dump).
-- **`user\prepare.log`**: Log proses ekstraksi dan penautan modul.
-- **`user\audio_debug.log`**: Detail pembacaan suara dan musik Ngs2.
+Saat melaporkan kendala atau bug, sertakan file log dari folder `user\`:
+- **`user\last_run.log`**: Log diagnostik runtime (inisialisasi, kompilasi shader GPU, crash dump).
+- **`user\prepare.log`**: Output proses persiapan gambar game dari eboot.bin.
+- **`user\audio_debug.log`**: Rincian alokasi suara Ngs2, status feed streaming, dan buffer (aktifkan "Audio debug log" di launcher).
 
-Menganalisis log audio lewat terminal:
+Untuk meringkas log audio dari command line:
 ```bash
 python tools/audio_log_summary.py user/audio_debug.log
 ```
 
 ---
 
-## Kredit & Kontributor
+## Kredit & Garis Keturunan Upstream
 
-| Komponen | Penulis / Kontributor | Kontribusi | Lisensi |
+| Proyek / Komponen | Penulis | Peran & Kontribusi | Lisensi |
 |---|---|---|---|
-| **Basara 4 PC Port** | **Razz** | Pembuat port, reverse-engineering fungsi sistem Basara 4 (`runtime_offline.c`), implementasi Ngs2 audio, LibAtrac9 hardening, launcher GUI, patch unlock FPS, pad mapper, packaging | GPL-2.0+ |
-| **Game Update, Local DLC & UI Enhancements** | **[zhiidan](https://github.com/zhiidan)** | Subsistem overlay update game terpisah, subsistem discovery dan mounting DLC lokal (Tahap 2), deteksi versi/SFO dinamis, desain ulang antarmuka launcher berbasis kartu, integrasi gamepad mapper | GPL-2.0+ |
-| **SpartanPort** (`gow3_pc`) | **Felipe Prado** | Fondasi arsitektur runtime native PC dan loader probe | GPL-2.0+ |
-| **bloodborne_pc** | **Supermedo** & **deadinside28** | Perintis teknik dan metodologi native port PS4 PC | GPL-2.0+ |
-| **shadPS4** | **shadPS4 Team** | Penerjemah shader GPU ke Vulkan / SPIR-V, tabel NID (`aerolib`) | GPL-2.0+ |
-| **LibAtrac9** | **Alexander Barney** | Library decoder format ATRAC9 | MIT |
-| **GPU Core Fixes** | **cuesta4** | Perbaikan rendering video core (blend, depth/stencil) | GPL-2.0+ |
-| **FSR-Vulkan** | **FireBurn** / AMD | Integrasi AMD FidelityFX Super Resolution untuk Vulkan | MIT |
-| **Third-Party Libraries** | Berbagai Pengembang | SDL3, Dear ImGui, Vulkan Memory Allocator, sirit, xbyak, miniz | Lisensi masing-masing |
+| **Sumeragi Native+** | **[i7Exceed](https://github.com/i7Exceed)** | Pengelola proyek, identitas visual orisinal, subsistem overlay update terpisah, integrasi DLC lokal (Tahap 2), validator kepatuhan rilis, kompatibilitas binary ganda, antarmuka modern | GPL-2.0+ |
+| **Port PC Basara 4** | **Razz** | Penulis port PC, reverse-engineering kontrak sistem Basara 4 (`runtime_offline.c`), implementasi software Ngs2, hardening LibAtrac9, GUI launcher awal, patch unlock FPS, mapper pad, packaging | GPL-2.0+ |
+| **SpartanPort** (`gow3_pc`) | **Felipe Prado** | Arsitektur runtime native dasar, probe loader, dan exception handling | GPL-2.0+ |
+| **bloodborne_pc** | **Supermedo** & **deadinside28** | Metodologi porting native PS4 ke PC dan library runtime awal | GPL-2.0+ |
+| **shadPS4** | **Tim shadPS4** | Core GPU, translasi shader ke SPIR-V/Vulkan, tabel NID (`aerolib`) | GPL-2.0+ |
+| **LibAtrac9** | **Alexander Barney** | Library dekompresi audio ATRAC9 | MIT |
+| **Perbaikan Render GPU** | **cuesta4** | Perbaikan emulasi blending, depth/stencil, dan aliasing pada core video | GPL-2.0+ |
+| **FSR-Vulkan** | **FireBurn** / AMD | Integrasi Vulkan untuk FidelityFX Super Resolution | MIT |
+| **Library Tambahan** | Berbagai Penulis | SDL3, Dear ImGui, Vulkan Memory Allocator, sirit, xbyak, miniz | Lisensi masing-masing |
 
-Daftar pemberitahuan hak cipta lengkap tersedia di file [NOTICE.md](NOTICE.md).
-
----
-
-## Komunitas & Media Sosial
-
-Bergabung dengan komunitas kami untuk diskusi, tanya jawab, pembaruan rilis, dan lainnya:
-
-- **Komunitas Discord**: [https://discord.gg/UBZc57bBMa](https://discord.gg/UBZc57bBMa) (komunitas umum & gaming)
-- **TikTok**: [@razzconnect](https://www.tiktok.com/@razzconnect) ([https://www.tiktok.com/@razzconnect](https://www.tiktok.com/@razzconnect)) — update progres porting & devlog
+Pemberitahuan hukum lengkap, atribusi, dan deklarasi hak cipta terdokumentasi di [NOTICE.md](NOTICE.md).
 
 ---
 
 ## Lisensi
 
-Proyek ini dirilis di bawah lisensi **GNU General Public License v2.0 atau lebih baru** ([LICENSE](LICENSE)).
-
-- Seluruh kode hasil modifikasi, reverse-engineering kontrak sistem, sound graph Ngs2, dan launcher karya Razz dilindungi Hak Cipta (C) 2026 Razz di bawah lisensi GPL-2.0-or-later.
-- Subsistem overlay update terpisah, subsistem discovery dan mounting DLC lokal, inspeksi SFO dinamis, pembaruan antarmuka launcher, dan integrasi tooling oleh [zhiidan](https://github.com/zhiidan) dilindungi Hak Cipta (C) 2026 zhiidan di bawah lisensi GPL-2.0-or-later.
-- Komponen pihak ketiga mempertahankan lisensi hak cipta dari masing-masing pembuat aslinya seperti tertera pada `NOTICE.md` dan folder `third_party/`.
+Proyek ini dilisensikan di bawah **GNU General Public License v2.0 atau lebih baru** ([LICENSE](LICENSE)).
+- Kontribusi orisinal Sumeragi Native+, identitas vektor, overlay update, dan subsistem DLC lokal adalah Hak Cipta (C) 2026 i7Exceed di bawah GPL-2.0-or-later.
+- Kode modifikasi runtime, sound graph Ngs2, dan launcher karya Razz adalah Hak Cipta (C) 2026 Razz di bawah GPL-2.0-or-later.
+- Komponen upstream dan pihak ketiga tetap tunduk pada lisensi masing-masing sebagaimana dirinci pada [NOTICE.md](NOTICE.md) dan [docs/COPYRIGHT_AND_LICENSE_AUDIT.md](docs/COPYRIGHT_AND_LICENSE_AUDIT.md).

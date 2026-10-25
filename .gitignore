@@ -1,5 +1,6 @@
 game/
 dlc/
+update/
 *.pkg
 *.dump
 *.elf
@@ -13,8 +14,15 @@ user/
 fsr4_shaders/
 pgo/
 *.png
-# Documentation pictures are part of the repository.
+# Documentation pictures and original branding assets are part of the repository.
 !docs/images/*.png
+!assets/*.png
+!launcher/sumeragi.png
+!launcher/spartanport.png
+!scripts/controller_diagrams/xbox.png
+!scripts/controller_diagrams/nintendo.png
+!launcher/logo.png
+!packaging/icon/monogram.png
 last_run.log
 dist/
 packaging/runtime-paths.nix
@@ -32,11 +40,6 @@ perf.data
 /docs/route_run.log
 mods.json
 patches.json
-!launcher/spartanport.png
-!scripts/controller_diagrams/xbox.png
-!scripts/controller_diagrams/nintendo.png
-!launcher/logo.png
-!packaging/icon/monogram.png
 # Local release notes and changelogs kept on dev disk only
 CHANGELOG*.md
 RELEASE_NOTES*.md

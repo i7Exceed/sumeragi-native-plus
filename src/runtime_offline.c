@@ -12,7 +12,8 @@
  *     are not applied;
  *   - online, streaming, Remote Play, Share Play, screenshots and recording on an offline
  *     console: a "not signed in to PSN, no network" model like runtime_services.c.
- * Every entry is an explicit contract; unknown functions still stop in probe.c. */
+ * Every entry is an explicit contract; unknown functions still stop in probe.c.
+ * Modified by i7Exceed (October 2026) for Sumeragi Native+: local DLC mount binding and discovery interfaces. */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include "gpu/spartanportgpu.h"

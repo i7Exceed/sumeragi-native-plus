@@ -21,7 +21,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 HERE = Path(__file__).resolve().parent
 LAUNCHER = REPO / "launcher"
-NAME = "Sengoku Basara 4"
+NAME = "Sumeragi Native+"
+LEGACY_NAME = "Sengoku Basara 4"
 STDLIB = ["argparse", "base64", "collections", "ctypes", "ctypes.wintypes", "hashlib", "json", "shutil", "struct",
           "subprocess", "pathlib", "zlib", "re", "tempfile", "lzma", "bz2", "gzip", "io", "itertools", "math", "time",
           "textwrap", "binascii", "zipfile", "functools", "dataclasses", "typing", "enum", "string", "traceback",
@@ -45,13 +46,19 @@ def msys(msys_root, command):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", type=Path, default=REPO / "dist/basara4-windows")
+    ap.add_argument("--out", type=Path, default=REPO / "dist/sumeragi-native-plus-windows")
     ap.add_argument("--update", action="store_true", help="refresh programs in an existing folder")
     ap.add_argument("--msys2", type=Path, default=Path(r"C:\msys64"))
     args = ap.parse_args()
     target, clang = args.out.resolve(), args.msys2 / "clang64/bin"
 
-    core, mapper = REPO / "out/gpu/basara4-core.exe", REPO / "out/basara4-pad-mapper.exe"
+    core = REPO / "out/gpu/sumeragi-core.exe"
+    if not core.is_file():
+        core = REPO / "out/gpu/basara4-core.exe"
+    mapper = REPO / "out/sumeragi-pad-mapper.exe"
+    if not mapper.is_file():
+        mapper = REPO / "out/basara4-pad-mapper.exe"
+
     if not core.is_file():
         sys.exit(f"{core} is missing: run `bash build.sh` in the MSYS2 CLANG64 shell first")
     if target.exists() and not args.update:
@@ -61,20 +68,22 @@ def main():
 
     # the controller mapper (SDL3 console program)
     msys(args.msys2, "clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole "
-                     "-o out/basara4-pad-mapper.exe")
+                     "-o out/sumeragi-pad-mapper.exe && cp -f out/sumeragi-pad-mapper.exe out/basara4-pad-mapper.exe")
 
     # the launcher executable
-    work = REPO / "out/basara4-package"
+    work = REPO / "out/sumeragi-package"
     shutil.rmtree(work, ignore_errors=True)
+    icon_path = LAUNCHER / "sumeragi.ico"
+
     pyi = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--windowed", "--name", NAME,
-           "--icon", LAUNCHER / "basara4.ico", "--paths", LAUNCHER, "--paths", REPO / "scripts",
-           "--add-data", f"{LAUNCHER / 'basara4.ico'};.",
+           "--icon", icon_path, "--paths", LAUNCHER, "--paths", REPO / "scripts",
+           "--add-data", f"{icon_path};.",
            "--distpath", work / "dist", "--workpath", work / "build", "--specpath", work]
     for module in STDLIB:
         pyi += ["--hidden-import", module]
-    for script in ("game_update", "mods", "patches", "dlc"):
+    for script in ("game_update", "mods", "patches", "dlc", "sumeragi_patches"):
         pyi += ["--hidden-import", script]
-    pyi.append(LAUNCHER / "basara4_launcher.py")
+    pyi.append(LAUNCHER / "sumeragi_launcher.py")
     run(*pyi)
     built = work / "dist" / NAME
 
@@ -82,32 +91,44 @@ def main():
     shutil.rmtree(target / "_internal", ignore_errors=True)
     shutil.copytree(built / "_internal", target / "_internal")
     shutil.copy2(built / f"{NAME}.exe", target / f"{NAME}.exe")
+    # Also provide legacy binary name for shortcuts and backwards compatibility
+    shutil.copy2(built / f"{NAME}.exe", target / f"{LEGACY_NAME}.exe")
 
     # runtime, mapper and the DLLs they load
     bin_dir = target / "bin"
     bin_dir.mkdir(exist_ok=True)
-    shutil.copy2(core, bin_dir / "basara4-core.exe")
-    shutil.copy2(mapper, bin_dir / "basara4-pad-mapper.exe")
-    for exe in ("basara4-core.exe", "basara4-pad-mapper.exe"):
-        run(clang / "llvm-strip.exe", "-s", bin_dir / exe)
+    for exe_name in ("sumeragi-core.exe", "basara4-core.exe"):
+        shutil.copy2(core, bin_dir / exe_name)
+        if (clang / "llvm-strip.exe").is_file():
+            run(clang / "llvm-strip.exe", "-s", bin_dir / exe_name)
+    for map_name in ("sumeragi-pad-mapper.exe", "basara4-pad-mapper.exe"):
+        if mapper.is_file():
+            shutil.copy2(mapper, bin_dir / map_name)
+            if (clang / "llvm-strip.exe").is_file():
+                run(clang / "llvm-strip.exe", "-s", bin_dir / map_name)
     for dll in (HERE / "dlls.txt").read_text().split():
-        shutil.copy2(clang / dll, bin_dir / dll)
+        if (clang / dll).is_file():
+            shutil.copy2(clang / dll, bin_dir / dll)
 
     # image preparation scripts and the launcher source
     scripts = target / "scripts"
     scripts.mkdir(exist_ok=True)
     for name in PREPARE_SCRIPTS:
-        shutil.copy2(REPO / "scripts" / name, scripts / name)
+        if (REPO / "scripts" / name).is_file():
+            shutil.copy2(REPO / "scripts" / name, scripts / name)
     shutil.rmtree(target / "launcher", ignore_errors=True)
     (target / "launcher").mkdir()
-    for name in ("basara4_launcher.py", "basara4_patches.py", "basara4.ico"):
-        shutil.copy2(LAUNCHER / name, target / "launcher" / name)
+    for name in ("sumeragi_launcher.py", "sumeragi_patches.py", "sumeragi.ico", "sumeragi.png"):
+        if (LAUNCHER / name).is_file():
+            shutil.copy2(LAUNCHER / name, target / "launcher" / name)
 
-    # documents
+    # documents and shortcuts
     for doc in ("NOTICE.md", "LICENSE"):
-        shutil.copy2(REPO / doc, target / doc)
-    for doc in ("README.txt", "README.id.txt", "Play Sengoku Basara 4.cmd"):
-        shutil.copy2(HERE / doc, target / doc)
+        if (REPO / doc).is_file():
+            shutil.copy2(REPO / doc, target / doc)
+    for doc in ("README.txt", "README.id.txt", "Play Sumeragi Native+.cmd", "Play Sengoku Basara 4.cmd"):
+        if (HERE / doc).is_file():
+            shutil.copy2(HERE / doc, target / doc)
 
     if not args.update:
         for folder in ("game", "user", "out"):

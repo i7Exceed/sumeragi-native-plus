@@ -10,6 +10,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
 from paths import ROOT  # sets up sys.path
 
 import sumeragi_native_trophies as trophies

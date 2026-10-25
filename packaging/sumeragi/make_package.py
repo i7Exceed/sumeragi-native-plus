@@ -77,10 +77,13 @@ def main():
     pyi = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--windowed", "--name", NAME,
            "--icon", icon_path, "--paths", LAUNCHER, "--paths", REPO / "scripts",
            "--add-data", f"{icon_path};.",
+           "--add-data", f"{LAUNCHER / 'i18n'};launcher/i18n",
            "--distpath", work / "dist", "--workpath", work / "build", "--specpath", work]
     for module in STDLIB:
         pyi += ["--hidden-import", module]
-    for script in ("game_update", "mods", "patches", "dlc", "sumeragi_patches", "sumeragi_native_trophies", "spartanport_trophies", "spartanport_lang"):
+    for script in ("game_update", "mods", "patches", "dlc", "sumeragi_patches", "sumeragi_native_trophies",
+                   "spartanport_trophies", "spartanport_lang", "sumeragi_controller_controls", "controller_mapper",
+                   "sumeragi_theme", "sumeragi_i18n", "i18n"):
         pyi += ["--hidden-import", script]
     pyi.append(LAUNCHER / "sumeragi_launcher.py")
     run(*pyi)
@@ -117,9 +120,12 @@ def main():
     (target / "launcher").mkdir()
     for name in ("sumeragi_launcher.py", "sumeragi_patches.py", "sumeragi_native_trophies.py",
                  "sumeragi_controller_controls.py", "controller_mapper.py",
+                 "sumeragi_theme.py", "sumeragi_i18n.py",
                  "spartanport_trophies.py", "spartanport_lang.py", "sumeragi.ico", "sumeragi.png"):
         if (LAUNCHER / name).is_file():
             shutil.copy2(LAUNCHER / name, target / "launcher" / name)
+    if (LAUNCHER / "i18n").is_dir():
+        shutil.copytree(LAUNCHER / "i18n", target / "launcher" / "i18n", dirs_exist_ok=True)
 
     # documents and shortcuts
     for doc in ("NOTICE.md", "LICENSE"):

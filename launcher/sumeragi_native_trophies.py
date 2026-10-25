@@ -421,7 +421,18 @@ def load_trophy_texts(
         val = val.strip()
 
         if key.startswith("@"):
-            labels[key[1:].strip()] = val
+            lbl_key = key[1:].strip()
+            if include_defaults:
+                is_other_ui_default = False
+                req_lang = (language or "en").lower()
+                for other_lang, ui_table in DEFAULT_UI.items():
+                    if not other_lang.startswith(req_lang) and ui_table.get(lbl_key) == val:
+                        is_other_ui_default = True
+                        break
+                if not is_other_ui_default:
+                    labels[lbl_key] = val
+            else:
+                labels[lbl_key] = val
             continue
 
         if key.isdigit():
@@ -429,9 +440,26 @@ def load_trophy_texts(
             if 0 <= trophy_id < TROPHY_MAX:
                 if "|" in val:
                     name_part, desc_part = val.split("|", 1)
-                    texts[trophy_id] = (name_part.strip(), desc_part.strip())
+                    parsed_entry = (name_part.strip(), desc_part.strip())
                 else:
-                    texts[trophy_id] = (val, "")
+                    parsed_entry = (val, "")
+
+                if include_defaults:
+                    is_other_default = False
+                    req_lang = (language or "en").lower()
+                    for other_lang, def_dict in DEFAULT_TROPHY_TEXTS.items():
+                        if not other_lang.startswith(req_lang):
+                            other_entry = def_dict.get(trophy_id)
+                            if other_entry and (
+                                other_entry == parsed_entry
+                                or (parsed_entry[0] == other_entry[0] and (not parsed_entry[1] or parsed_entry[1] == other_entry[1]))
+                            ):
+                                is_other_default = True
+                                break
+                    if not is_other_default:
+                        texts[trophy_id] = parsed_entry
+                else:
+                    texts[trophy_id] = parsed_entry
 
     return labels, texts
 
@@ -485,14 +513,60 @@ def save_trophy_texts(
         return False
 
 
-def ensure_trophy_texts_file(user_dir_or_file, language: str = "en") -> Path:
-    """Ensures user/trophy_texts.txt exists with all 43 default descriptions."""
+def sync_trophy_texts_file(user_dir_or_file, language: str = "en") -> Path:
+    """Synchronizes user/trophy_texts.txt with the requested language setting.
+
+    Updates default names, descriptions, and labels to the active language while
+    strictly preserving true user-customized overrides.
+    """
     p = Path(user_dir_or_file)
     target = p if p.suffix == ".txt" else p / "trophy_texts.txt"
     if not target.is_file():
         default_texts = get_default_trophy_texts(language)
-        save_trophy_texts(target, labels=None, texts=default_texts, preserve_existing=False)
+        ui_labels = get_ui(language)
+        save_trophy_texts(target, labels=ui_labels, texts=default_texts, preserve_existing=False)
+        return target
+
+    old_labels, old_texts = load_trophy_texts(target, language=language, include_defaults=False)
+
+    # Keep only true custom overrides
+    custom_texts = {}
+    for tid, entry in old_texts.items():
+        is_default = False
+        for lang_dict in DEFAULT_TROPHY_TEXTS.values():
+            def_entry = lang_dict.get(tid)
+            if def_entry and (
+                def_entry == entry
+                or (entry[0] == def_entry[0] and (not entry[1] or entry[1] == def_entry[1]))
+            ):
+                is_default = True
+                break
+        if not is_default:
+            custom_texts[tid] = entry
+
+    custom_labels = {}
+    for lk, lval in old_labels.items():
+        is_ui_default = False
+        for ui_dict in DEFAULT_UI.values():
+            if ui_dict.get(lk) == lval:
+                is_ui_default = True
+                break
+        if not is_ui_default:
+            custom_labels[lk] = lval
+
+    merged_texts = get_default_trophy_texts(language)
+    merged_texts.update(custom_texts)
+
+    merged_labels = dict(get_ui(language))
+    merged_labels.update(custom_labels)
+
+    save_trophy_texts(target, labels=merged_labels, texts=merged_texts, preserve_existing=False)
     return target
+
+
+def ensure_trophy_texts_file(user_dir_or_file, language: str = "en") -> Path:
+    """Ensures user/trophy_texts.txt exists and is synchronized with the requested language."""
+    return sync_trophy_texts_file(user_dir_or_file, language=language)
 
 
 # ---------------------------------------------------------------------------

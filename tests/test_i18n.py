@@ -75,9 +75,9 @@ class TestI18nSystem(unittest.TestCase):
         self.assertEqual(i18n.t("nav.settings"), "Settings")
 
         # Test formatting
-        formatted = i18n.t("app.developed_by", author="i7Exceed", version="1.0.3")
+        formatted = i18n.t("app.developed_by", author="i7Exceed", version="1.0.4")
         self.assertIn("i7Exceed", formatted)
-        self.assertIn("1.0.3", formatted)
+        self.assertIn("1.0.4", formatted)
 
         # Test partial/missing kwargs does not raise KeyError
         safe_format = i18n.t("app.developed_by", author="i7Exceed")

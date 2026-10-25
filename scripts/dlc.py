@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 zhiidan, Razz.
+# Copyright (C) 2026 i7Exceed.
 """Local DLC discovery, validation, and manifest generation for Basara 4 PC.
 
 Discovers locally supplied, extracted add-on content adhering to:

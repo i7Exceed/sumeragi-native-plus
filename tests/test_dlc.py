@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 zhiidan, Razz.
+# Copyright (C) 2026 i7Exceed.
 """Unit tests for Basara 4 PC Local DLC Support (Stage 2)."""
 
 from paths import ROOT  # noqa: F401  (puts scripts/ on sys.path)
@@ -181,7 +181,13 @@ class TestDLCValidationAndDiscovery(unittest.TestCase):
 sys.path.insert(0, str(ROOT / 'launcher'))
 import sumeragi_launcher as basara4_launcher  # noqa: E402
 from unittest import mock
-import packaging.sumeragi.make_package as make_package
+try:
+    import packaging.sumeragi.make_package as make_package
+except ModuleNotFoundError:
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location('make_package', ROOT / 'packaging' / 'sumeragi' / 'make_package.py')
+    make_package = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(make_package)
 
 
 class TestLauncherDLCIntegration(unittest.TestCase):

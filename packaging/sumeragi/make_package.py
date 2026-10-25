@@ -80,7 +80,7 @@ def main():
            "--distpath", work / "dist", "--workpath", work / "build", "--specpath", work]
     for module in STDLIB:
         pyi += ["--hidden-import", module]
-    for script in ("game_update", "mods", "patches", "dlc", "sumeragi_patches"):
+    for script in ("game_update", "mods", "patches", "dlc", "sumeragi_patches", "sumeragi_native_trophies", "spartanport_trophies", "spartanport_lang"):
         pyi += ["--hidden-import", script]
     pyi.append(LAUNCHER / "sumeragi_launcher.py")
     run(*pyi)
@@ -115,7 +115,8 @@ def main():
             shutil.copy2(REPO / "scripts" / name, scripts / name)
     shutil.rmtree(target / "launcher", ignore_errors=True)
     (target / "launcher").mkdir()
-    for name in ("sumeragi_launcher.py", "sumeragi_patches.py", "sumeragi.ico", "sumeragi.png"):
+    for name in ("sumeragi_launcher.py", "sumeragi_patches.py", "sumeragi_native_trophies.py",
+                 "spartanport_trophies.py", "spartanport_lang.py", "sumeragi.ico", "sumeragi.png"):
         if (LAUNCHER / name).is_file():
             shutil.copy2(LAUNCHER / name, target / "launcher" / name)
 
@@ -123,6 +124,10 @@ def main():
     for doc in ("NOTICE.md", "LICENSE"):
         if (REPO / doc).is_file():
             shutil.copy2(REPO / doc, target / doc)
+    docs_dir = target / "docs"
+    docs_dir.mkdir(exist_ok=True)
+    if (REPO / "docs" / "TROPHIES.md").is_file():
+        shutil.copy2(REPO / "docs" / "TROPHIES.md", docs_dir / "TROPHIES.md")
     for doc in ("README.txt", "README.id.txt", "Play Sumeragi Native+.cmd"):
         if (HERE / doc).is_file():
             shutil.copy2(HERE / doc, target / doc)

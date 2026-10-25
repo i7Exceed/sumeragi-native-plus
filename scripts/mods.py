@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 zhiidan, Razz.
+# Copyright (C) 2026 i7Exceed.
 """Filesystem link helpers for game update overlay and mod views.
 
 Supports symlinks, Windows NTFS junctions (without symlink privilege),

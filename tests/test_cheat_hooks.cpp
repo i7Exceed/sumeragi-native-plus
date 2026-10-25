@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
         assert(executable);
 
         std::vector<unsigned char> entry = {
-            0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57  // push rbx, r12, r13, r14, r15
+            0x53, 0x57, 0x56, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57  // push rbx, rdi, rsi, r12, r13, r14, r15
         };
         if (hook.id == SUMERAGI_CHEAT_GOLD) {
             entry.insert(entry.end(), {0x48, 0x89, 0xc8, 0x89, 0xd1}); // mov rax, rcx; mov ecx, edx
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         assert(spartanport_cheat_build_stub(executable + 64, &hook, reinterpret_cast<uintptr_t>(&flag),
                                             reinterpret_cast<uintptr_t>(executable + 256)) < 192);
 
-        const unsigned char exit[] = {0x41, 0x5f, 0x41, 0x5e, 0x41, 0x5d, 0x41, 0x5c, 0x5b, 0xc3};
+        const unsigned char exit[] = {0x41, 0x5f, 0x41, 0x5e, 0x41, 0x5d, 0x41, 0x5c, 0x5e, 0x5f, 0x5b, 0xc3};
         memcpy(executable + 256, exit, sizeof(exit));
 #ifdef _WIN32
         DWORD previous;
@@ -95,6 +95,9 @@ int main(int argc, char** argv) {
         } else if (hook.id == SUMERAGI_CHEAT_GROWTH_POINTS) {
             assert(result == 4950);
         } else {
+            if (result != 50) {
+                fprintf(stderr, "Hook %u (id %u) failed: expected 50, got %u\n", (unsigned)i, (unsigned)hook.id, result);
+            }
             assert(result == 50);
         }
 

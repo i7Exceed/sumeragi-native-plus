@@ -22,9 +22,13 @@ Cara Menjalankan
      Proses ini otomatis diperbarui jika eboot.bin berubah.
   Shortcut "Play Sumeragi Native+.cmd" dapat dipakai untuk langsung menjalankan game.
 
-Menu In-Game
-  Tekan Insert pada keyboard, atau R3 + L2 (RS + LT) pada controller.
+Menu In-Game & Sistem Piala (Trophies)
+  Tekan Insert pada keyboard, atau R3 + L2 (RS + LT) pada controller untuk menu pengaturan in-game.
+  Tekan F8 pada keyboard, atau R3 + R2 (RS + RT) pada controller untuk melihat Daftar Piala in-game.
+  Notifikasi piala terbuka (toast) muncul otomatis secara real-time saat piala tercapai.
+  Tombol "🏆 Trophies" pada launcher untuk melihat progres 43 piala, filter, dan reset.
   Screenshot: F12. Navigasi tab: L1/R1 atau Q/E.
+  Dokumentasi lengkap piala: docs/TROPHIES.md
 
 Controller
   Stik XInput, DualShock 4, DualSense, serta yang didukung SDL berfungsi langsung.

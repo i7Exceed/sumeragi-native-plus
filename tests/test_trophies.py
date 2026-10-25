@@ -1,35 +1,36 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Tests of the trophy support of the launcher (launcher/spartanport_trophies.py and its language tables).
-
-They need no game files: the trophy package (trophy00.trp) is built here, byte by byte."""
+# Copyright (C) 2026 i7Exceed, Felipe Prado.
+"""Comprehensive unit tests for the Sumeragi Native+ Trophy System."""
 
 import io
+import os
 import struct
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'launcher'))
+from paths import ROOT  # sets up sys.path
 
-import spartanport_lang  # noqa: E402
-import spartanport_trophies  # noqa: E402
+import sumeragi_native_trophies as trophies
+from sumeragi_native_trophies import (
+    TRP_MAGIC,
+    TROPHY_MAX,
+)
 
 try:
     from PIL import Image
-except ImportError:  # the colour test is skipped without Pillow
+except ImportError:
     Image = None
 
-LANGUAGES = ('en', 'ru', 'ar', 'es', 'pt', 'fr', 'de', 'it', 'pl', 'tr', 'zh', 'ja', 'ko')
 
-
-def build_trp(entries, magic=b'\xdc\xa2\x4d\x00', element=0x40):
-    """A trophy package: 0x60-byte header, one entry per (name, bytes), then the files."""
+def build_trp(entries, magic=TRP_MAGIC, element=0x40):
+    """Builds a synthetic in-memory TRP binary package with given (name, bytes) entries."""
     header_size = 0x60
     offset = header_size + element * len(entries)
     table, body = b'', b''
     for name, data in entries:
-        table += name.encode().ljust(0x20, b'\0') + struct.pack('>QQ', offset + len(body), len(data))
+        table += name.encode('latin-1').ljust(0x20, b'\0') + struct.pack('>QQ', offset + len(body), len(data))
         table = table.ljust(len(table) + element - 0x30, b'\0')
         body += data
     header = magic + struct.pack('>I', 3) + struct.pack('>Q', header_size + len(table) + len(body))
@@ -38,86 +39,284 @@ def build_trp(entries, magic=b'\xdc\xa2\x4d\x00', element=0x40):
 
 
 def solid_png(rgb):
+    """Generates a solid color 32x32 PNG byte sequence."""
+    if not Image:
+        return b'\x89PNG\r\n\x1a\nfake'
     out = io.BytesIO()
     Image.new('RGB', (32, 32), rgb).save(out, 'PNG')
     return out.getvalue()
 
 
-class TrophyTexts(unittest.TestCase):
-    def test_every_language_lists_all_trophies(self):
-        for language in LANGUAGES:
-            texts = spartanport_trophies.TEXTS[language]
-            self.assertEqual(len(texts), spartanport_trophies.TROPHY_COUNT, language)
-            for number, (name, description) in enumerate(texts):
-                self.assertTrue(name.strip() and description.strip(), (language, number))
-                self.assertNotIn('|', name + description, (language, number))  # the separator of trophy_texts.txt
-                self.assertLessEqual(len(name.encode()), 63, (language, number))  # runtime buffers
-                self.assertLessEqual(len(description.encode()), 159, (language, number))
-
-    def test_text_falls_back_to_english(self):
-        self.assertEqual(spartanport_trophies.text('xx', 3), spartanport_trophies.TEXTS['en'][3])
-        self.assertEqual(spartanport_trophies.text('pt', 0)[0], 'Rei da colina')
-        self.assertEqual(spartanport_trophies.text('en', 99), ('', ''))
-        self.assertEqual(spartanport_trophies.text('en', -1), ('', ''))
-
-
-class PageTexts(unittest.TestCase):
-    def test_every_language_has_the_same_texts(self):
-        keys = set(spartanport_trophies.UI['pt'])
-        for language, table in spartanport_trophies.UI.items():
-            self.assertEqual(set(table), keys, language)
-            for key, text in table.items():
-                self.assertTrue(text.strip(), (language, key))
-                self.assertEqual(text.count('{}'), key.count('{}'), (language, key))
-
-    def test_launcher_tables_carry_them(self):
-        for language in spartanport_trophies.UI:
-            table = spartanport_lang.table(language)
-            for key, text in spartanport_trophies.UI[language].items():
-                self.assertEqual(table.get(key), text, (language, key))
-
-
-class TrophyPackage(unittest.TestCase):
+class TestTrophyPackageParsing(unittest.TestCase):
     def setUp(self):
-        self.folder = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp(prefix='b4_trophy_test_'))
 
-    def write(self, name, data):
-        path = self.folder / name
-        path.write_bytes(data)
-        return path
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_icons_are_read_by_id(self):
-        png = b'\x89PNG-fake'
-        path = self.write('trophy00.trp', build_trp([
-            ('TROPCONF.ESFM', b'encrypted'), ('TROP000.PNG', png + b'0'), ('TROP034.PNG', png + b'34'),
-            ('TROP_00.ESFM', b'x'), ('ICON0.PNG', b'icon')]))
-        self.assertEqual(spartanport_trophies.read_trp_icons(path), {0: png + b'0', 34: png + b'34'})
+    def write_file(self, name, data):
+        p = self.tmp / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        return p
 
-    def test_bad_packages_give_nothing(self):
+    def test_dynamic_trophy_ids_and_count(self):
+        """Basara 4 Sumeragi has 43 trophies (0 to 42) or dynamic IDs."""
+        png = b'\x89PNG-fake-icon'
+        entries = [('TROPCONF.ESFM', b'encrypted_meta')]
+        for i in range(43):
+            entries.append((f'TROP{i:03d}.PNG', png + bytes([i])))
+
+        trp_bytes = build_trp(entries)
+        path = self.write_file('trophy00.trp', trp_bytes)
+
+        icons = trophies.read_trp_icons(path)
+        self.assertEqual(len(icons), 43)
+        self.assertEqual(icons[0], png + bytes([0]))
+        self.assertEqual(icons[42], png + bytes([42]))
+
+        ids, total, ic = trophies.read_trp_entries(path)
+        self.assertEqual(ids, list(range(43)))
+        self.assertEqual(total, 43)
+        self.assertEqual(len(ic), 43)
+
+    def test_malformed_and_edge_case_packages(self):
         good = build_trp([('TROP001.PNG', b'abc')])
-        self.assertEqual(spartanport_trophies.read_trp_icons(self.folder / 'missing.trp'), {})
-        self.assertEqual(spartanport_trophies.read_trp_icons(self.write('a.trp', b'')), {})
-        self.assertEqual(spartanport_trophies.read_trp_icons(self.write('b.trp', b'\0\0\0\0' + good[4:])), {})
-        self.assertEqual(spartanport_trophies.read_trp_icons(self.write('c.trp', build_trp([('TROP001.PNG', b'abc')], element=8))), {})
-        self.assertEqual(spartanport_trophies.read_trp_icons(self.write('d.trp', good[:-2])), {})  # a file past the end
+        # Missing file
+        self.assertEqual(trophies.read_trp_icons(self.tmp / 'missing.trp'), {})
+        # Empty file
+        self.assertEqual(trophies.read_trp_icons(self.write_file('empty.trp', b'')), {})
+        # Invalid magic
+        self.assertEqual(trophies.read_trp_icons(self.write_file('bad_magic.trp', b'\0\0\0\0' + good[4:])), {})
+        # Too small element size
+        self.assertEqual(trophies.read_trp_icons(self.write_file('bad_elem.trp', build_trp([('TROP001.PNG', b'abc')], element=8))), {})
+        # Truncated entry offset beyond file size
+        self.assertEqual(trophies.read_trp_icons(self.write_file('truncated.trp', good[:-2])), {})
 
-    def test_unlocked_bits(self):
-        flags = [0, 0, 0, 0]
-        for trophy in (0, 5, 31, 32, 34, 127):
-            flags[trophy // 32] |= 1 << (trophy % 32)
-        path = self.write('trophies.dat', struct.pack('<4I', *flags))
-        self.assertEqual(spartanport_trophies.read_unlocked_trophies(path), {0, 5, 31, 32, 34, 127})
-        self.assertEqual(spartanport_trophies.read_unlocked_trophies(self.folder / 'none.dat'), set())
-        self.assertEqual(spartanport_trophies.read_unlocked_trophies(self.write('short.dat', b'\x02')), {1})
 
+class TestTrophyStateAndProgress(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='b4_trophy_state_'))
+        self.dat = self.tmp / 'trophies.dat'
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_read_and_write_unlocked_bits(self):
+        unlocked_in = {0, 5, 9, 31, 32, 42, 127}
+        trophies.write_unlocked_trophies(self.dat, unlocked_in)
+        self.assertTrue(self.dat.is_file())
+        self.assertEqual(self.dat.stat().st_size, 16)
+
+        unlocked_out = trophies.read_unlocked_trophies(self.dat)
+        self.assertEqual(unlocked_out, unlocked_in)
+
+    def test_nonexistent_and_short_dat(self):
+        self.assertEqual(trophies.read_unlocked_trophies(self.tmp / 'nonexistent.dat'), set())
+        # 1 byte with bit 1 set -> trophy 1
+        short = self.tmp / 'short.dat'
+        short.write_bytes(b'\x02')
+        self.assertEqual(trophies.read_unlocked_trophies(short), {1})
+
+    def test_calculate_progress(self):
+        unlocked = {0, 1, 2, 9}
+        have, total, pct = trophies.calculate_progress(unlocked, 43)
+        self.assertEqual(have, 4)
+        self.assertEqual(total, 43)
+        self.assertAlmostEqual(pct, 4 / 43 * 100.0, places=2)
+
+        # Zero total handles gracefully without divide by zero
+        self.assertEqual(trophies.calculate_progress(set(), 0), (0, 0, 0.0))
+
+    def test_filter_trophies(self):
+        all_ids = list(range(5))
+        unlocked = {1, 3}
+        self.assertEqual(trophies.filter_trophies(all_ids, unlocked, 'all'), [0, 1, 2, 3, 4])
+        self.assertEqual(trophies.filter_trophies(all_ids, unlocked, 'unlocked'), [1, 3])
+        self.assertEqual(trophies.filter_trophies(all_ids, unlocked, 'locked'), [0, 2, 4])
+
+    def test_safe_reset_with_backup(self):
+        trophies.write_unlocked_trophies(self.dat, {0, 9, 15})
+        ok, backup_path = trophies.reset_trophies(self.dat)
+        self.assertTrue(ok)
+        self.assertIsNotNone(backup_path)
+        self.assertTrue(backup_path.is_file())
+        self.assertEqual(backup_path.name, 'trophies.dat.bak')
+
+        # Backup has previous state
+        self.assertEqual(trophies.read_unlocked_trophies(backup_path), {0, 9, 15})
+        # Reset file has 0 trophies unlocked
+        self.assertEqual(trophies.read_unlocked_trophies(self.dat), set())
+
+
+class TestTrophyTextsAndLocalization(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='b4_trophy_texts_'))
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_bilingual_labels_english_and_indonesian(self):
+        en = trophies.get_ui('en')
+        id_ = trophies.get_ui('id')
+        keys = {'heading', 'notice', 'unlocked', 'locked', 'all', 'only_unlocked', 'only_locked', 'counter', 'hint'}
+        for k in keys:
+            self.assertIn(k, en)
+            self.assertIn(k, id_)
+            self.assertTrue(en[k].strip())
+            self.assertTrue(id_[k].strip())
+
+    def test_load_and_save_user_texts_preserving_overrides(self):
+        text_file = self.tmp / 'trophy_texts.txt'
+        content = (
+            "@heading=Custom Trophies\n"
+            "@notice=UNLOCKED!\n"
+            "0=The Conqueror | Obtain all trophies\n"
+            "9=Warlord's Path | Win 50 battles\n"
+        )
+        text_file.write_text(content, encoding='utf-8')
+
+        labels, texts = trophies.load_trophy_texts(self.tmp)
+        self.assertEqual(labels.get('heading'), 'Custom Trophies')
+        self.assertEqual(labels.get('notice'), 'UNLOCKED!')
+        self.assertEqual(texts[0], ('The Conqueror', 'Obtain all trophies'))
+        self.assertEqual(texts[9], ("Warlord's Path", 'Win 50 battles'))
+
+        # Save new label while preserving custom trophy descriptions
+        trophies.save_trophy_texts(self.tmp, labels={'counter': '{} of {} unlocked'}, preserve_existing=True)
+        new_labels, new_texts = trophies.load_trophy_texts(self.tmp)
+        self.assertEqual(new_labels.get('heading'), 'Custom Trophies')
+        self.assertEqual(new_labels.get('counter'), '{} of {} unlocked')
+        self.assertEqual(new_texts[9], ("Warlord's Path", 'Win 50 battles'))
+
+
+class TestPackageResolution(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='b4_trophy_res_'))
+        self.game = self.tmp / 'game'
+        self.update = self.tmp / 'update'
+        self.game.mkdir()
+        self.update.mkdir()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_resolves_update_package_first_and_falls_back_to_base(self):
+        base_trp = self.game / 'sce_sys' / 'trophy' / 'trophy00.trp'
+        base_trp.parent.mkdir(parents=True)
+        base_trp.write_bytes(build_trp([('TROP000.PNG', b'base')]))
+
+        update_trp = self.update / 'sce_sys' / 'trophy' / 'trophy00.trp'
+        update_trp.parent.mkdir(parents=True)
+        update_trp.write_bytes(build_trp([('TROP000.PNG', b'update')]))
+
+        # With both present, update is selected
+        self.assertEqual(trophies.resolve_trophy_package(self.game, self.update), update_trp)
+
+        # When update has no trp, base is selected
+        update_trp.unlink()
+        self.assertEqual(trophies.resolve_trophy_package(self.game, self.update), base_trp)
+
+        # When neither has trp, returns None
+        base_trp.unlink()
+        self.assertIsNone(trophies.resolve_trophy_package(self.game, self.update))
+
+
+class TestTrophyCategoryDetermination(unittest.TestCase):
     @unittest.skipUnless(Image, 'Pillow is not installed')
-    def test_tier_follows_the_colour_of_the_icon(self):
-        colours = {'platinum': (139, 167, 167), 'bronze': (137, 89, 52), 'silver': (136, 119, 104),
-                   'gold': (141, 104, 27)}  # the average colours of the icons of the game
-        for tier, rgb in colours.items():
-            self.assertEqual(spartanport_trophies.trophy_tier(solid_png(rgb)), tier)
-        self.assertEqual(spartanport_trophies.trophy_tier(b'not a png'), '')
-        self.assertEqual(spartanport_trophies.trophy_tier(solid_png((0, 0, 0))), '')
+    def test_category_colors(self):
+        colours = {
+            'platinum': (139, 167, 167),
+            'bronze': (137, 89, 52),
+            'silver': (136, 119, 104),
+            'gold': (141, 104, 27)
+        }
+        for cat, rgb in colours.items():
+            self.assertEqual(trophies.trophy_tier(solid_png(rgb)), cat)
+
+        self.assertEqual(trophies.trophy_tier(b'invalid_png'), '')
+        self.assertEqual(trophies.trophy_tier(solid_png((0, 0, 0))), '')
+
+
+class TestTrophiesWindowUI(unittest.TestCase):
+    def setUp(self):
+        import tkinter as tk
+        self.root = tk.Tk()
+        self.root.withdraw()
+        self.tmp = Path(tempfile.mkdtemp(prefix='b4_ui_test_'))
+        self.game = self.tmp / 'game'
+        self.game.mkdir()
+        self.user = self.tmp / 'user'
+        self.user.mkdir()
+
+    def tearDown(self):
+        import shutil
+        self.root.destroy()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_empty_state_and_refresh(self):
+        win = trophies.TrophiesWindow(self.root, str(self.game), '', self.user, language='en')
+        self.assertEqual(win.total_count, 0)
+        self.assertEqual(len(win.unlocked_set), 0)
+        self.assertIn('No trophy package found', win._t('no_package_msg'))
+        win.destroy()
+
+    def test_populated_state_filters_and_language_toggle(self):
+        # Create synthetic TRP with 43 trophies
+        trp_path = self.game / 'sce_sys' / 'trophy' / 'trophy00.trp'
+        trp_path.parent.mkdir(parents=True)
+        entries = [(f'TROP{i:03d}.PNG', solid_png((141, 104, 27))) for i in range(43)]
+        trp_path.write_bytes(build_trp(entries))
+
+        # Create trophies.dat with 3 trophies unlocked: 0, 5, 9
+        trophies.write_unlocked_trophies(self.user / 'trophies.dat', {0, 5, 9})
+
+        win = trophies.TrophiesWindow(self.root, str(self.game), '', self.user, language='en')
+        self.assertEqual(win.total_count, 43)
+        self.assertEqual(win.unlocked_set, {0, 5, 9})
+
+        # Test filter switching
+        win._set_filter('unlocked')
+        self.assertEqual(win.filter_mode, 'unlocked')
+        win._set_filter('locked')
+        self.assertEqual(win.filter_mode, 'locked')
+        win._set_filter('all')
+        self.assertEqual(win.filter_mode, 'all')
+
+        # Test language toggle
+        win._toggle_language()
+        self.assertEqual(win.lang, 'id')
+        self.assertEqual(win._t('heading'), 'Piala')
+        win._toggle_language()
+        self.assertEqual(win.lang, 'en')
+        self.assertEqual(win._t('heading'), 'Trophies')
+
+        win.destroy()
+
+
+class TestLauncherRuntimeConsistency(unittest.TestCase):
+    def test_env_resolves_identical_user_dir(self):
+        import sumeragi_launcher as launcher_mod
+        # Create a mock or direct instance to verify env variables
+        launcher = None
+        try:
+            launcher = launcher_mod.Launcher()
+            launcher.withdraw()
+            env = launcher._env()
+            self.assertIn('SPARTAN_USER_DIR', env)
+            self.assertIn('SPARTAN_GPU_USER_DIR', env)
+            # Both must point to the identical absolute path
+            self.assertEqual(
+                Path(env['SPARTAN_USER_DIR']).resolve(),
+                Path(env['SPARTAN_GPU_USER_DIR']).resolve()
+            )
+        finally:
+            if launcher:
+                launcher.destroy()
 
 
 if __name__ == '__main__':

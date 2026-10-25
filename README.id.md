@@ -79,6 +79,7 @@ Sumeragi Native+ menghadirkan identitas visual orisinal dengan estetika desktop 
 - **AMD FidelityFX Super Resolution (FSR 1)** & **RCAS Sharpening**: Upscaling bersih ke 1440p atau 4K.
 - **Anisotropic Filtering (hingga 16x)**: Mempertajam tekstur arena pertempuran dan lantai dari sudut kamera miring.
 - **Launcher Modern Berbasis Kartu**: Antarmuka modern dengan bilah sisi responsif, deteksi versi/SFO otomatis, pemilih DLC, dan alat konfigurasi gamepad terpadu.
+- **Sistem Piala (Trophies) Offline & Manager**: Dukungan penuh piala untuk Sengoku Basara 4 Sumeragi (43 piala). Dilengkapi notifikasi animasi real-time (toast), overlay daftar piala in-game (`F8` / `R3+R2`), piala platinum otomatis, serta pengelola piala pada launcher dengan badge kategori, filter, progres bar, dan reset aman dengan backup. Baca [docs/TROPHIES.md](docs/TROPHIES.md).
 - **Validator Rilis Otomatis**: Skrip validasi statis (`packaging/validate_release.py`) untuk memastikan tidak ada aset game ilegal atau cache yang masuk ke paket distribusi maupun pelacakan Git.
 
 ---

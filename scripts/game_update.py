@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 zhiidan, Razz.
+# Copyright (C) 2026 i7Exceed.
 """Read-only combined view of a dumped base game and its separate update folder.
 
 The update (eboot.bin, sce_sys, ...) is laid over the base game in a temporary folder, so

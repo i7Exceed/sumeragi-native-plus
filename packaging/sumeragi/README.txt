@@ -46,13 +46,17 @@ Launcher options
   VSync, sharpening (RCAS), anisotropic filtering 2x-16x
   Separate Update   Select custom update path with automated overlay merge
   Add-on DLCs       Discover and mount add-on content manifests automatically
+  Trophies          View 43 trophies, progress bar, category tags, filters, and reset action
   Controller        Map controller / Map sticks only / Reset mapping
   Credits           Displays NOTICE.md
 
-In-game menu
-  Insert on keyboard, or R3 + L2 (RS + LT) on controller.
+In-game menu & Trophies
+  Insert on keyboard, or R3 + L2 (RS + LT) on controller opens the in-game settings menu.
+  F8 on keyboard, or R3 + R2 (RS + RT) on controller opens the in-game Trophy List.
+  Trophy unlock notifications (toasts) appear automatically when trophies are earned.
   F12 takes a screenshot.
   L1/R1 or Q/E switches tabs.
+  Detailed trophy documentation: docs/TROPHIES.md
 
 Controller
   XInput, DualShock 4, DualSense, and SDL-supported pads work out-of-the-box.

@@ -79,6 +79,7 @@ Sumeragi Native+ introduces an original aesthetic rooted in classical Japanese m
 - **AMD FidelityFX Super Resolution (FSR 1)** & **RCAS Sharpening**: Upscale cleanly from 720p/900p/1080p to 1440p or 4K.
 - **Anisotropic Filtering (up to 16x)**: Greatly enhances floor and terrain texture clarity across battlefields.
 - **Modernized Card-Based Launcher**: Built with a clean native dark aesthetic, responsive sidebar, DLC discovery UI, and controller configuration tools.
+- **Offline Trophy System & Manager**: Complete trophy support for Sengoku Basara 4 Sumeragi (43 trophies). Includes live animated toast notifications, in-game trophy browser overlay (`F8` / `R3+R2`), automatic platinum unlock, and dedicated launcher manager with category badges, filtering, progress tracking, and backup reset. See [docs/TROPHIES.md](docs/TROPHIES.md).
 - **Automated Release Compliance Validation**: Bundled static validator (`packaging/validate_release.py`) to guarantee zero proprietary game assets enter distributions or git tracking.
 
 ---

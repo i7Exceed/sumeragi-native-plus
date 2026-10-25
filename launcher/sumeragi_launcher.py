@@ -102,6 +102,7 @@ from patches import find_sfo, game_title_id, game_app_ver  # noqa: E402
 # pyrefly: ignore[missing-import]
 import dlc  # noqa: E402
 import sumeragi_patches as patches_module  # noqa: E402
+from sumeragi_native_trophies import TrophiesWindow  # noqa: E402
 
 DEFAULTS = {"game": "", "update_dir": "", "dlc_dir": "", "display_mode": "borderless", "vsync": True, "fps_limit": 60, "rcas": False,
             "anisotropy": 0, "resolution": "native", "upscale": "off", "audio_log": False, "audio_wav": False}
@@ -528,6 +529,7 @@ class Launcher(tk.Tk):
         btn_row2 = ttk.Frame(c3, style="Card.TFrame")
         btn_row2.pack(fill="x")
         ttk.Button(btn_row2, text="💾 Open Saves", style="Small.TButton", command=self.open_saves).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row2, text="🏆 Trophies", style="Small.TButton", command=self.open_trophies).pack(side="left", padx=(0, 6))
         ttk.Button(btn_row2, text="📜 Open Log", style="Small.TButton", command=self.open_log).pack(side="left", padx=(0, 6))
         ttk.Button(btn_row2, text="🔊 Audio Log", style="Small.TButton", command=self.open_audio_log).pack(side="left")
 
@@ -718,7 +720,8 @@ class Launcher(tk.Tk):
     def _env(self):
         env = os.environ.copy()
         env["PATH"] = str(BIN) + os.pathsep + env.get("PATH", "")
-        env["SPARTAN_GPU_USER_DIR"] = str(USER)
+        env["SPARTAN_USER_DIR"] = str(USER.resolve())
+        env["SPARTAN_GPU_USER_DIR"] = str(USER.resolve())
         env["SPARTAN_CONFIG"] = str(self._ini())
         env["SPARTAN_WINDOW_TITLE"] = f"Sengoku Basara 4 Sumeragi - {BRAND} by {AUTHOR}"
         if WINDOW_ICON.exists():
@@ -1001,6 +1004,18 @@ class Launcher(tk.Tk):
         path = USER / "savedata"
         path.mkdir(parents=True, exist_ok=True)
         os.startfile(path)
+
+    def open_trophies(self):
+        if getattr(self, "trophies_win", None) and self.trophies_win.winfo_exists():
+            self.trophies_win.lift()
+            self.trophies_win.focus_force()
+            return
+        self.trophies_win = TrophiesWindow(
+            self,
+            game_dir=self.game_var.get(),
+            update_dir=self.update_var.get(),
+            user_dir=USER,
+        )
 
     def _close(self):
         if self.proc and self.proc.poll() is None:

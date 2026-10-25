@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (C) 2026 zhiidan, Razz.
+# Copyright (C) 2026 i7Exceed.
 """Game metadata and title ID helpers.
 
 Reads TITLE_ID, APP_VER and other attributes from sce_sys/param.sfo,

@@ -27,8 +27,24 @@ MINGW*|MSYS*)
         grep -v '^\[' out/gpu-build.log | tail -40 >&2
         echo 'Build failed (full log: out/gpu-build.log)' >&2; exit 1
     fi
-    cp out/gpu/spartanport-probe.exe out/gpu/spartanport-gpu-capabilities.exe out/gpu/spartanport-play.exe out/
-    echo "Built $PWD/out/spartanport-probe.exe"
+    cp out/gpu/basara4-core.exe out/gpu/spartanport-gpu-capabilities.exe out/gpu/spartanport-play.exe out/
+    cp out/gpu/basara4-core.exe out/spartanport-probe.exe
+    clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole -o out/basara4-pad-mapper.exe
+    mkdir -p bin
+    cp out/basara4-core.exe bin/basara4-core.exe
+    cp out/basara4-pad-mapper.exe bin/basara4-pad-mapper.exe
+    if [[ -f $msys2_root/clang64/bin/SDL3.dll ]]; then
+        cp "$msys2_root/clang64/bin/SDL3.dll" bin/
+        cp "$msys2_root/clang64/bin/SDL3.dll" out/
+    fi
+    echo "Built $PWD/out/basara4-core.exe and $PWD/out/basara4-pad-mapper.exe"
+    if [[ ${1:-} == --test ]]; then
+        clang -std=c11 -O2 -g -Wall -Wextra -pthread -I. -Isrc tests/test_dlc_runtime.c -o out/dlc-runtime-test.exe
+        ./out/dlc-runtime-test.exe
+        clang -std=c11 -O2 -g -Wall -Wextra -I. -Isrc tests/test_content.c src/runtime_content.c -o out/content-test.exe
+        ./out/content-test.exe
+        echo "C tests passed."
+    fi
     exit 0
     ;;
 esac
@@ -106,6 +122,8 @@ if [[ ${1:-} == --test ]]; then
     out/sema-test
     "$CC" -std=c11 -D_GNU_SOURCE -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_content.c src/runtime_content.c -o out/content-test
     out/content-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -I. -Isrc tests/test_dlc_runtime.c -o out/dlc-runtime-test
+    out/dlc-runtime-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_mp3.c src/runtime_mp3.c out/libatrac9.a -lm "${libraries[@]}" -o out/mp3-test
     out/mp3-test tests/data/sine.mp3
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_videodec.c "${libraries[@]}" -o out/videodec-test

@@ -1,4 +1,5 @@
 game/
+dlc/
 *.pkg
 *.dump
 *.elf
@@ -20,6 +21,7 @@ packaging/runtime-paths.nix
 fsr4_411/
 vkd3d-proton.cache
 tools/fsr4cap/*.exe
+tools/extract_dlc.py
 perf.data
 # Local leftovers: patch backups, generated SPIR-V, analysis outputs, test saves and routes
 *.orig
@@ -40,3 +42,4 @@ CHANGELOG*.md
 RELEASE_NOTES*.md
 RELEASING.md
 
+bin/*

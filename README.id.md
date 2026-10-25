@@ -48,6 +48,8 @@ Kode x86-64 asli game berjalan langsung di prosesor PC Anda tanpa emulator (tanp
 - **Audio Engine Software Ngs2 Kustom**: Implementasi penuh sound graph Ngs2 untuk menangani streaming multi-channel ATRAC9, decoding LibAtrac9, sintesis suara, pemutaran PCM, dan submixing.
 - **Translasi Grafis Vulkan 1.3**: Menerjemahkan shader AMD GCN PS4 ke SPIR-V / Vulkan secara langsung dengan performa tinggi.
 - **Launcher Resmi Basara 4 PC**: Dibuat khusus oleh Razz dengan tema visual Sengoku, pilihan resolusi, mode layar, anisotropic filtering, FSR 1 upscaling, dan kalibrasi controller.
+- **Overlay Update Game Terpisah**: Pasang dan mainkan update game (misal v1.01, v1.02) secara non-destruktif tanpa mengubah folder dump dasar.
+- **Dukungan DLC Lokal & Add-on (Tahap 2)**: Deteksi otomatis, validasi aman, enumerasi AppContent, dan mounting guest (`/addcont0` ... `/addcont15`) untuk konten DLC lokal tanpa bypass lisensi palsu.
 - **Patch FPS Unlimited**: Scanner signature memory otomatis (`basara4_patches.py`) yang mematikan pembatas FPS bawaan game (bisa main di 90, 120, 144, 165, 240, hingga unlimited FPS).
 - **AMD FidelityFX Super Resolution (FSR 1)** & **RCAS Sharpening**: Upscaling bersih ke 1440p atau 4K.
 - **Anisotropic Filtering (hingga 16x)**: Mempertajam tekstur lantai, tanah, dan arena pertempuran dari sudut kamera miring.
@@ -77,7 +79,24 @@ Unduh arsip terbaru `basara4-windows.zip` dari halaman [Releases](https://github
 ### 2. Masukkan Dump Game
 Salin folder dump game PS4 Anda (yang berisi `eboot.bin`, `sce_module\`, dan `sce_sys\`) ke dalam folder `game\`, atau klik tombol **Browse** di launcher untuk memilih lokasinya.
 
-### 3. Jalankan Game
+### 3. (Opsional) Masukkan Folder Update & DLC
+- **Update Folder**: Pilih folder update yang sudah diekstrak (misal v1.02) pada kolom **Update Folder**.
+- **DLC Folder**: Pilih folder root DLC lokal Anda pada kolom **DLC Folder**.
+  Struktur folder DLC yang didukung:
+  ```text
+  <DLC_ROOT>/CUSA01159/<ENTITLEMENT_ID>/<file konten>
+  ```
+  *Contoh:*
+  ```text
+  dlc/
+  └── CUSA01159/
+      ├── COSTUME000000001/
+      │   └── data.arc
+      └── WEAPON0000000001/
+          └── data.arc
+  ```
+
+### 4. Jalankan Game
 1. Buka **`Sengoku Basara 4.exe`**.
 2. Atur resolusi, mode layar, dan batas FPS sesuai monitor Anda.
 3. Klik **PLAY**.
@@ -183,6 +202,7 @@ python tools/audio_log_summary.py user/audio_debug.log
 | Komponen | Penulis / Kontributor | Kontribusi | Lisensi |
 |---|---|---|---|
 | **Basara 4 PC Port** | **Razz** | Pembuat port, reverse-engineering fungsi sistem Basara 4 (`runtime_offline.c`), implementasi Ngs2 audio, LibAtrac9 hardening, launcher GUI, patch unlock FPS, pad mapper, packaging | GPL-2.0+ |
+| **Game Update, Local DLC & UI Enhancements** | **[zhiidan](https://github.com/zhiidan)** | Subsistem overlay update game terpisah, subsistem discovery dan mounting DLC lokal (Tahap 2), deteksi versi/SFO dinamis, desain ulang antarmuka launcher berbasis kartu, integrasi gamepad mapper | GPL-2.0+ |
 | **SpartanPort** (`gow3_pc`) | **Felipe Prado** | Fondasi arsitektur runtime native PC dan loader probe | GPL-2.0+ |
 | **bloodborne_pc** | **Supermedo** & **deadinside28** | Perintis teknik dan metodologi native port PS4 PC | GPL-2.0+ |
 | **shadPS4** | **shadPS4 Team** | Penerjemah shader GPU ke Vulkan / SPIR-V, tabel NID (`aerolib`) | GPL-2.0+ |
@@ -209,4 +229,5 @@ Bergabung dengan komunitas kami untuk diskusi, tanya jawab, pembaruan rilis, dan
 Proyek ini dirilis di bawah lisensi **GNU General Public License v2.0 atau lebih baru** ([LICENSE](LICENSE)).
 
 - Seluruh kode hasil modifikasi, reverse-engineering kontrak sistem, sound graph Ngs2, dan launcher karya Razz dilindungi Hak Cipta (C) 2026 Razz di bawah lisensi GPL-2.0-or-later.
+- Subsistem overlay update terpisah, subsistem discovery dan mounting DLC lokal, inspeksi SFO dinamis, pembaruan antarmuka launcher, dan integrasi tooling oleh [zhiidan](https://github.com/zhiidan) dilindungi Hak Cipta (C) 2026 zhiidan di bawah lisensi GPL-2.0-or-later.
 - Komponen pihak ketiga mempertahankan lisensi hak cipta dari masing-masing pembuat aslinya seperti tertera pada `NOTICE.md` dan folder `third_party/`.

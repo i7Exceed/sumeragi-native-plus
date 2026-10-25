@@ -35,6 +35,18 @@ Copyright (C) 2026 Razz, released under the GNU GPL v2 or later.
 - **Diagnostics**: the `SPARTAN_NGS2_TRACE`, `SPARTAN_AVPLAYER_TRACE`, `SPARTAN_TIME_TRACE` and
   `SPARTAN_FILE_TRACE` environment switches (off by default).
 
+## Contributors & Enhancements (by [zhiidan](https://github.com/zhiidan), 2026)
+
+Copyright (C) 2026 [zhiidan](https://github.com/zhiidan), released under the GNU GPL v2 or later.
+
+- **Separate Game Update Overlay support** (`scripts/game_update.py`, `scripts/mods.py`, `scripts/patches.py`):
+  allows applying separately extracted game update folders non-destructively over base game dumps via NTFS junctions and symlinks.
+- **Local DLC Discovery & Mounting Subsystem** (`scripts/dlc.py`, `src/runtime_content.c`, `src/runtime_offline.c`, `src/probe.c`):
+  safe discovery, entitlement validation, versioned binary manifest (`B4ADD001`), AppContent enumeration (`sceAppContentGetAddcontInfoList`), and guest mounting (`/addcont0` ... `/addcont15`) for locally extracted add-on content.
+- **Dynamic Game Version & Title ID Detection**: automatic inspection of `param.sfo` for base game, update folders, and DLC.
+- **Card-Based Launcher Layout & UI Refactoring**: cleaner visual hierarchy, DLC folder selection, responsive layout, and structured controller tools.
+- **Windows Build Toolchain & Pad Mapper Integration**: MSYS2 CLANG64 native build fixes, standalone `basara4-pad-mapper.exe` support, and packaging improvements.
+
 ## What this project is built on
 
 This is a fork. The architecture, the loader, most of the runtime and the whole GPU side come from

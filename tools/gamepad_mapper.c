@@ -3,7 +3,9 @@
  * Asks for each PlayStation button/stick in turn, records the joystick input that moved, and
  * writes one SDL mapping line (GUID,name,a:b2,...) to the file given as argv[1]. The runtime
  * loads it through SDL_GAMECONTROLLERCONFIG_FILE. Wait 15 s without input to skip an entry. */
+#define SDL_MAIN_HANDLED
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -108,16 +110,17 @@ static int capture(int want_axis, char *out, size_t size) {
 }
 
 int main(int argc, char **argv) {
+    SDL_SetMainReady();
     const char *path = argc > 1 ? argv[1] : "gamepad_mapping.txt";
     /* The console window is not an SDL window: without this SDL drops joystick events as background input. */
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
-    if (!SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD)) { printf("SDL_Init gagal: %s\n", SDL_GetError()); return 1; }
+    if (!SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD)) { printf("SDL_Init gagal: %s\n", SDL_GetError()); fflush(stdout); return 1; }
     SDL_Delay(500);
     int count = 0;
     SDL_JoystickID *ids = SDL_GetJoysticks(&count);
-    if (!ids || count < 1) { printf("Tidak ada controller terdeteksi. Colokkan lalu jalankan lagi.\n"); return 1; }
+    if (!ids || count < 1) { printf("Tidak ada controller terdeteksi. Colokkan lalu jalankan lagi.\n"); fflush(stdout); return 1; }
     SDL_Joystick *j = SDL_OpenJoystick(ids[0]);
-    if (!j) { printf("Tidak bisa membuka controller: %s\n", SDL_GetError()); return 1; }
+    if (!j) { printf("Tidak bisa membuka controller: %s\n", SDL_GetError()); fflush(stdout); return 1; }
     joy = j;
     axis_count = SDL_GetNumJoystickAxes(j);
     char guid[64];

@@ -1,0 +1,9 @@
+{
+    "cmake.sourceDirectory": "C:/Users/zhida/Downloads/basara4-native-pc/gpu",
+    "python.analysis.extraPaths": [
+        "scripts",
+        "launcher",
+        "packaging/basara4",
+        "tests"
+    ]
+}

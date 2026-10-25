@@ -48,6 +48,8 @@ The game's original x86-64 code executes directly on your PC's CPU without emula
 - **Custom Software Ngs2 Audio Engine**: Reverse-engineered and implemented software Ngs2 sound graph handling multi-channel ATRAC9 streaming, LibAtrac9 decoding, voice synthesis, PCM playback, and submixing.
 - **Vulkan 1.3 Graphics Translation**: High-performance translation of PlayStation 4 AMD GCN shader bytecode and draw calls directly into SPIR-V / Vulkan.
 - **Custom Basara 4 PC Launcher**: Built from scratch with a themed Sengoku aesthetic, resolution picker, display modes, anisotropic filtering, FSR 1 upscaling, and controller configuration.
+- **Separate Game Update Overlay**: Mount and play updated versions (e.g. v1.01, v1.02) non-destructively without modifying your base game dump.
+- **Local DLC & Add-on Content Support (Stage 2)**: Reliable discovery, validation, enumeration, and guest mounting (`/addcont0` ... `/addcont15`) for locally extracted add-on content without synthetic license bypasses.
 - **True Unlimited FPS Unlock**: Integrated memory patch (`basara4_patches.py`) that scans for the engine's internal frame limiter and disables it, unlocking 90, 120, 144, 165, 240, and uncapped FPS on high-refresh displays.
 - **AMD FidelityFX Super Resolution (FSR 1)** & **RCAS Sharpening**: Upscale cleanly from 720p/900p/1080p to 1440p or 4K.
 - **Anisotropic Filtering (up to 16x)**: Greatly enhances floor and terrain texture clarity across battlefields.
@@ -77,7 +79,24 @@ Download the latest `basara4-windows.zip` from the [Releases](https://github.com
 ### 2. Supply Your Game Dump
 Place your decrypted PS4 game dump folder (which contains `eboot.bin`, `sce_module\`, and `sce_sys\`) into the `game\` directory, or click **Browse** in the launcher to select its location.
 
-### 3. Launch and Play
+### 3. (Optional) Supply Game Update & DLC Folders
+- **Update Folder**: Select your extracted update folder (e.g. v1.02) in the **Update Folder** field.
+- **DLC Folder**: Select your locally extracted DLC directory in the **DLC Folder** field.
+  Organize your extracted add-on folders using the standard structure:
+  ```text
+  <DLC_ROOT>/CUSA01159/<ENTITLEMENT_ID>/<content files>
+  ```
+  *Example:*
+  ```text
+  dlc/
+  └── CUSA01159/
+      ├── COSTUME000000001/
+      │   └── data.arc
+      └── WEAPON0000000001/
+          └── data.arc
+  ```
+
+### 4. Launch and Play
 1. Double-click **`Sengoku Basara 4.exe`**.
 2. Select your desired resolution, display mode, and frame limit.
 3. Click **PLAY**.
@@ -213,6 +232,7 @@ This project is built upon open-source foundations and prior reverse-engineering
 | Project / Component | Author(s) | Role & Contribution | License |
 |---|---|---|---|
 | **Basara 4 PC Port** | **Razz** | Port author, reverse-engineering of Basara 4 system contracts (`runtime_offline.c`), software Ngs2 implementation, LibAtrac9 hardening, custom launcher GUI, frame-limiter patch, pad mapper, packaging | GPL-2.0+ |
+| **Game Update, Local DLC & UI Enhancements** | **[zhiidan](https://github.com/zhiidan)** | Game update overlay subsystem, local DLC discovery & mount pipeline (Stage 2), dynamic version/SFO detection, card-based launcher UI redesign, pad mapper integration | GPL-2.0+ |
 | **SpartanPort** (`gow3_pc`) | **Felipe Prado** | Upstream base native runtime architecture, probe loader, and core harness | GPL-2.0+ |
 | **bloodborne_pc** | **Supermedo** & **deadinside28** | Foundational PS4 native PC porting methodology and runtime libraries | GPL-2.0+ |
 | **shadPS4** | **shadPS4 Team** | Translated GPU core, shader translation to SPIR-V/Vulkan, NID table (`aerolib`) | GPL-2.0+ |
@@ -239,4 +259,5 @@ Join our community for discussions, troubleshooting, updates, and more:
 This project is licensed under the **GNU General Public License v2.0 or later** ([LICENSE](LICENSE)).
 
 - All modifications, reverse-engineered engine contracts, custom audio graph code, and launcher source code created by Razz are Copyright (C) 2026 Razz under GPL-2.0-or-later.
+- Game update overlay subsystem, local DLC discovery & mounting pipeline, dynamic SFO inspection, launcher UI overhaul, and tooling additions created by [zhiidan](https://github.com/zhiidan) are Copyright (C) 2026 zhiidan under GPL-2.0-or-later.
 - Third-party components and submodules retain their respective authors' licenses as described in `NOTICE.md` and `third_party/`.

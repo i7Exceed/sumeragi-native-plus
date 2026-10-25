@@ -1,0 +1,14 @@
+{
+  "include": [
+    "launcher",
+    "scripts",
+    "packaging",
+    "tests"
+  ],
+  "extraPaths": [
+    "scripts",
+    "launcher",
+    "packaging/basara4",
+    "tests"
+  ]
+}

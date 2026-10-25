@@ -27,7 +27,8 @@ STDLIB = ["argparse", "base64", "collections", "ctypes", "ctypes.wintypes", "has
           "textwrap", "binascii", "zipfile", "functools", "dataclasses", "typing", "enum", "string", "traceback",
           "stat", "errno", "copy", "contextlib", "datetime", "fnmatch", "glob", "operator", "xml.etree.ElementTree",
           "uuid", "codecs", "array", "bisect", "heapq", "runpy", "importlib.util"]
-PREPARE_SCRIPTS = ["prepare.py", "link_libc.py", "link_modules.py", "content_profile.py"]
+PREPARE_SCRIPTS = ["prepare.py", "link_libc.py", "link_modules.py", "content_profile.py",
+                   "game_update.py", "mods.py", "patches.py", "dlc.py"]
 
 
 def run(*cmd, **kw):
@@ -66,10 +67,13 @@ def main():
     work = REPO / "out/basara4-package"
     shutil.rmtree(work, ignore_errors=True)
     pyi = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--windowed", "--name", NAME,
-           "--icon", LAUNCHER / "basara4.ico", "--paths", LAUNCHER, "--add-data", f"{LAUNCHER / 'basara4.ico'};.",
+           "--icon", LAUNCHER / "basara4.ico", "--paths", LAUNCHER, "--paths", REPO / "scripts",
+           "--add-data", f"{LAUNCHER / 'basara4.ico'};.",
            "--distpath", work / "dist", "--workpath", work / "build", "--specpath", work]
     for module in STDLIB:
         pyi += ["--hidden-import", module]
+    for script in ("game_update", "mods", "patches", "dlc"):
+        pyi += ["--hidden-import", script]
     pyi.append(LAUNCHER / "basara4_launcher.py")
     run(*pyi)
     built = work / "dist" / NAME

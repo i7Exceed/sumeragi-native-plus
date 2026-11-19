@@ -77,6 +77,7 @@ static At9Status ReadConfigData(ConfigData* config)
 
 static At9Status InitFrame(Atrac9Handle* handle)
 {
+	handle->Frame.IndexInSuperframe = 0;
 	const int blockCount = handle->Config.ChannelConfig.BlockCount;
 	handle->Frame.Config = &handle->Config;
 	int channelNum = 0;
@@ -117,6 +118,9 @@ static At9Status InitChannel(Channel* channel, Block* parentBlock, int channelIn
 	channel->Config = parentBlock->Config;
 	channel->ChannelIndex = channelIndex;
 	channel->Mdct.Bits = parentBlock->Config->FrameSamplesPower;
+	memset(channel->Mdct.ImdctPrevious, 0, sizeof(channel->Mdct.ImdctPrevious));
+	memset(channel->Pcm, 0, sizeof(channel->Pcm));
+	memset(channel->Spectra, 0, sizeof(channel->Spectra));
 	return ERR_SUCCESS;
 }
 

@@ -28,7 +28,7 @@ STDLIB = ["argparse", "base64", "collections", "ctypes", "ctypes.wintypes", "has
           "stat", "errno", "copy", "contextlib", "datetime", "fnmatch", "glob", "operator", "xml.etree.ElementTree",
           "uuid", "codecs", "array", "bisect", "heapq", "runpy", "importlib.util"]
 PREPARE_SCRIPTS = ["prepare.py", "link_libc.py", "link_modules.py", "content_profile.py",
-                   "game_update.py", "mods.py", "patches.py", "dlc.py"]
+                   "game_update.py", "mods.py", "patches.py", "dlc.py", "isa_rewrite.py"]
 
 
 def run(*cmd, **kw):
@@ -54,6 +54,10 @@ def main():
     core = REPO / "out/gpu/sumeragi-core.exe"
     if not core.is_file():
         core = REPO / "out/gpu/basara4-core.exe"
+    if not core.is_file():
+        core = REPO / "out/sumeragi-core.exe"
+    if not core.is_file():
+        core = REPO / "out/basara4-core.exe"
     mapper = REPO / "out/sumeragi-pad-mapper.exe"
     if not mapper.is_file():
         mapper = REPO / "out/basara4-pad-mapper.exe"
@@ -66,7 +70,7 @@ def main():
         sys.exit(f"{target} does not exist")
 
     # the controller mapper (SDL3 console program)
-    msys(args.msys2, "clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole "
+    msys(args.msys2, "clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -lxinput1_4 -mconsole "
                      "-o out/sumeragi-pad-mapper.exe && cp -f out/sumeragi-pad-mapper.exe out/basara4-pad-mapper.exe")
 
     # the launcher executable
@@ -81,9 +85,13 @@ def main():
            "--distpath", work / "dist", "--workpath", work / "build", "--specpath", work]
     for module in STDLIB:
         pyi += ["--hidden-import", module]
-    for script in ("game_update", "mods", "patches", "dlc", "sumeragi_patches", "sumeragi_native_trophies",
+    for script in ("game_update", "mods", "patches", "dlc", "isa_rewrite", "sumeragi_patches", "sumeragi_native_trophies",
                    "spartanport_trophies", "spartanport_lang", "sumeragi_controller_controls", "controller_mapper",
-                   "sumeragi_theme", "sumeragi_i18n", "i18n"):
+                   "sumeragi_theme", "sumeragi_i18n", "i18n",
+                   "sumeragi_config", "sumeragi_pipeline", "sumeragi_gpu", "sumeragi_crash", "sumeragi_pages",
+                   "sumeragi_cheats", "sumeragi_dlc", "sumeragi_updater",
+                   "basara4_cheats", "basara4_dlc", "basara4_patches", "basara4_launcher",
+                   "PIL", "iced_x86"):
         pyi += ["--hidden-import", script]
     pyi.append(LAUNCHER / "sumeragi_launcher.py")
     run(*pyi)
@@ -118,10 +126,14 @@ def main():
             shutil.copy2(REPO / "scripts" / name, scripts / name)
     shutil.rmtree(target / "launcher", ignore_errors=True)
     (target / "launcher").mkdir()
-    for name in ("sumeragi_launcher.py", "sumeragi_patches.py", "sumeragi_native_trophies.py",
+    for name in ("sumeragi_launcher.py", "sumeragi_config.py", "sumeragi_pipeline.py",
+                 "sumeragi_gpu.py", "sumeragi_crash.py", "sumeragi_pages.py",
+                 "sumeragi_patches.py", "sumeragi_native_trophies.py",
                  "sumeragi_controller_controls.py", "controller_mapper.py",
-                 "sumeragi_theme.py", "sumeragi_i18n.py",
-                 "spartanport_trophies.py", "spartanport_lang.py", "sumeragi.ico", "sumeragi.png"):
+                 "sumeragi_theme.py", "sumeragi_i18n.py", "sumeragi_cheats.py",
+                 "sumeragi_dlc.py", "sumeragi_updater.py",
+                 "basara4_launcher.py", "basara4_patches.py", "basara4_cheats.py", "basara4_dlc.py",
+                 "spartanport_trophies.py", "spartanport_lang.py", "sumeragi.ico", "sumeragi.png", "basara4.ico"):
         if (LAUNCHER / name).is_file():
             shutil.copy2(LAUNCHER / name, target / "launcher" / name)
     if (LAUNCHER / "i18n").is_dir():

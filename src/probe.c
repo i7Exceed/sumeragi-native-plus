@@ -23,6 +23,7 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#include "crash_dump_win.h"
 #else
 #include <sys/mman.h>
 #include <malloc.h>
@@ -52,6 +53,7 @@ static IsaTable *isa_table; /* rewritten sites (--isa-rewrite); the fault handle
 static void loader_report_hook(void) {
     if (isa_table) isa_rewrite_report(isa_table, stdout);
     if (gpu_enabled) printf("GPU: copy waits yielded %llu times\n", spartanportgpu_copy_yields());
+    if (gpu_enabled) spartanportgpu_session_end();
 }
 int vulkan_smoke(void);
 
@@ -134,31 +136,13 @@ static void describe_address(char *out, size_t size, uintptr_t address) {
     snprintf(out,size,"%p",(void *)address);
 }
 
-/* Basara 4 PC: a minidump (threads, stacks, modules) next to the logs when the process dies, so a crash report is not just
- * the text above.  user/crash/core-YYYYMMDD-HHMMSS.dmp; SPARTAN_GPU_USER_DIR is the launcher's user folder. */
-typedef BOOL (WINAPI *minidump_write_fn)(HANDLE, DWORD, HANDLE, int, PVOID, PVOID, PVOID);
-typedef struct { DWORD thread; EXCEPTION_POINTERS *pointers; BOOL client_pointers; } minidump_exception;
-void spartanport_write_minidump(void *exception_pointers) {
-    static volatile LONG once;
-    if (InterlockedExchange(&once,1)) return;
-    HMODULE dbghelp=LoadLibraryA("dbghelp.dll");
-    minidump_write_fn write=dbghelp ? (minidump_write_fn)(void *)GetProcAddress(dbghelp,"MiniDumpWriteDump") : NULL;
-    if (!write) return;
-    const char *user=getenv("SPARTAN_GPU_USER_DIR");
-    char dir[MAX_PATH],path[MAX_PATH];
-    snprintf(dir,sizeof(dir),"%s\\crash",user && *user ? user : "user");
-    CreateDirectoryA(dir,NULL);
-    SYSTEMTIME now;
-    GetLocalTime(&now);
-    snprintf(path,sizeof(path),"%s\\core-%04d%02d%02d-%02d%02d%02d.dmp",dir,now.wYear,now.wMonth,now.wDay,now.wHour,now.wMinute,now.wSecond);
-    HANDLE file=CreateFileA(path,GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
-    if (file==INVALID_HANDLE_VALUE) return;
-    minidump_exception ex={GetCurrentThreadId(),(EXCEPTION_POINTERS *)exception_pointers,FALSE};
-    /* thread info, process/thread data, indirectly referenced memory, unloaded modules */
-    BOOL ok=write(GetCurrentProcess(),GetCurrentProcessId(),file,0x1000|0x100|0x40|0x20,exception_pointers ? &ex : NULL,NULL,NULL);
-    CloseHandle(file);
-    fprintf(stderr,ok ? "Crash dump written: %s\n" : "Crash dump failed: %s\n",path);
+/* Basara 4 PC: spartanport_write_minidump (user/crash/core-YYYYMMDD-HHMMSS.dmp) is in crash_dump_win.c. */
+static void report_stack_failure(uintptr_t caller) {
+    char where[MAX_PATH+64];
+    describe_address(where,sizeof(where),caller);
+    fprintf(stderr,"Stack protector caller: %s\n",where);
     fflush(stderr);
+    spartanport_write_minidump(NULL);
 }
 static int fatal_reported;
 static LONG fatal_exception(EXCEPTION_POINTERS *info) {
@@ -430,6 +414,75 @@ extern uintptr_t spartanport_auto_qte_flag(void);
 
 /* The hooks below find their sites by signature (src/signature.h), so they work in any region
  * and version of the game whose code matches; a site that is not found leaves its feature off. */
+static int install_jump(uint64_t at, unsigned length, unsigned char *stub);
+
+static size_t parser_guard_emit_jcc(unsigned char *stub, size_t *used, unsigned char opcode) {
+    stub[(*used)++] = 0x0f;
+    stub[(*used)++] = opcode;
+    size_t displacement = *used;
+    *used += 4;
+    return displacement;
+}
+
+static void parser_guard_patch_displacement(unsigned char *stub, size_t displacement, uint64_t target) {
+    uint64_t next_ip = (uintptr_t)stub + displacement + 4;
+    int64_t delta = (int64_t)target - (int64_t)next_ip;
+    if (delta < INT32_MIN || delta > INT32_MAX) fail("text parser guard branch out of range");
+    int32_t relative = (int32_t)delta;
+    memcpy(stub + displacement, &relative, sizeof(relative));
+}
+
+static void install_text_parser_guard(Segment *segments, uint64_t count, uint64_t size) {
+    const uint64_t entry = 0xc328e0, hook = 0xc32cc0, resume = 0xc32cc6, epilogue = 0xc32f3e;
+    static const unsigned char entry_signature[] = {
+        0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,
+        0x53,0x48,0x81,0xe4,0xe0,0xff,0xff,0xff,0x48,0x81,0xec,0x40
+    };
+    static const unsigned char loop_signature[] = {0x41,0x8a,0x1b,0x48,0xff,0xc2};
+    static const unsigned char epilogue_signature[] = {
+        0x48,0x8b,0x05,0xbb,0x93,0x7c,0x00,0x48,0x8b,0x00,0x48,0x3b,
+        0x84,0x24,0x20,0x01,0x00,0x00,0x75,0x0f,0x48,0x8d,0x65,0xd8
+    };
+    if (size < epilogue + sizeof(epilogue_signature)) return;
+    if (!mapped(segments, count, entry, sizeof(entry_signature)) ||
+        !mapped(segments, count, hook, sizeof(loop_signature)) ||
+        !mapped(segments, count, epilogue, sizeof(epilogue_signature))) {
+        puts("Text parser guard: skipped (parser code not mapped)");
+        return;
+    }
+    if (memcmp(image + entry, entry_signature, sizeof(entry_signature)) ||
+        memcmp(image + hook, loop_signature, sizeof(loop_signature)) ||
+        memcmp(image + epilogue, epilogue_signature, sizeof(epilogue_signature))) {
+        puts("Text parser guard: skipped (parser signature mismatch)");
+        return;
+    }
+
+    unsigned char *stub = allocate(page_size);
+    size_t used = 0;
+    memcpy(stub + used, "\x4b\x8d\x34\x2e\x4c\x3b\xde", 7);
+    used += 7;
+    size_t input_end = parser_guard_emit_jcc(stub, &used, 0x83);
+    memcpy(stub + used, "\x41\x80\x3b\x00", 4);
+    used += 4;
+    size_t null_terminator = parser_guard_emit_jcc(stub, &used, 0x84);
+    memcpy(stub + used, "\x41\x8a\x1b\x48\xff\xc2", 6);
+    used += 6;
+    stub[used++] = 0xe9;
+    size_t resume_jump = used;
+    used += 4;
+    protect(stub, page_size, 7);
+
+    uint64_t resume_target = (uintptr_t)image + resume;
+    uint64_t epilogue_target = (uintptr_t)image + epilogue;
+    parser_guard_patch_displacement(stub, resume_jump, resume_target);
+    parser_guard_patch_displacement(stub, input_end, epilogue_target);
+    parser_guard_patch_displacement(stub, null_terminator, epilogue_target);
+    protect(stub, page_size, 5);
+
+    if (!install_jump(hook, 6, stub)) fail("cannot hook text parser");
+    puts("Text parser guard: ready (input bounds and 256-byte local-buffer limit)");
+}
+
 static void install_cheats(Segment *segments, uint64_t count, uint64_t size) {
     const char *names[] = {"Gold won't decrease", "Special coin x99999", "Growth points won't decrease",
                            "Weapon points won't decrease", "Weapon rank points won't decrease"};
@@ -705,6 +758,7 @@ static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t
  * does: GPU, audio and guest threads are still running, so no destructors. */
 static void menu_quit(void) {
     puts("Pause menu: Exit to Desktop");
+    if (gpu_enabled) spartanportgpu_session_end();
     fflush(NULL);
 #ifdef _WIN32
     TerminateProcess(GetCurrentProcess(),0);
@@ -770,6 +824,7 @@ static void apply_patches(const char *path, Segment *segments, uint64_t ns, cons
  * applied at start). Descriptors are closed first so the old GPU device and its memory are
  * released before the new process opens its own. */
 void runtime_restart(void) {
+    if (gpu_enabled) spartanportgpu_session_end();
     fflush(NULL);
 #ifdef _WIN32
     /* run.py sets SPARTAN_RESTART_COMMAND: the launch command line, started again (new patches). */
@@ -1183,6 +1238,7 @@ int main(int argc, char **argv) {
         _exit(missing ? 1 : 0); /* no destructors: GPU threads are running */
     }
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
+    install_text_parser_guard(segments, ns, size);
     /* The hooks below find their sites by signature in one game's code (cheats, multipliers, enemy
      * health, QTE prompts, pause menu). --no-game-hooks leaves them out for any other game. */
     if (!game_hooks) puts("Game hooks: off");
@@ -1209,6 +1265,9 @@ int main(int argc, char **argv) {
         protect(stubs, stub_area, 5);
     }
     runtime_set_report_hook(loader_report_hook);
+#ifdef _WIN32
+    runtime_set_stack_failure_hook(report_stack_failure);
+#endif
     protect(traps, round_page((import_count + 1) * 32), 5);
     protect(image, round_page(size), 0);
     int executable_entry = 0;

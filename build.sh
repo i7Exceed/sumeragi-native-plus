@@ -2,6 +2,32 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")"
 mkdir -p out
+# Third-party code is vendored: committed in this repository with this port's changes already in it
+# (no submodules). Each local change is kept as a patch beside the code it changes (patch folder:
+# library folder); the build checks that every one of them is in the tree, so a library update that
+# dropped one stops here instead of shipping without it. tests/test_vendored_patches.py reads this list.
+VENDORED_PATCHES=(
+    gpu/patches/fsr-vulkan:gpu/third_party/fsr-vulkan
+    third_party/patches/LibAtrac9:third_party/LibAtrac9
+)
+check_vendored() {  # check_vendored <file>...: required vendored files, then every recorded patch
+    local file entry patch missing=()
+    for file in "$@"; do
+        [[ -f $file ]] || missing+=("$file (missing)")
+    done
+    command -v git >/dev/null || { echo 'Need git to check the vendored patches.' >&2; exit 1; }
+    for entry in "${VENDORED_PATCHES[@]}"; do
+        for patch in "${entry%%:*}"/*.patch; do
+            git apply --reverse --check --directory="${entry#*:}" "$patch" 2>/dev/null ||
+                missing+=("$patch (not in ${entry#*:})")
+        done
+    done
+    if (( ${#missing[@]} )); then
+        printf 'Vendored third-party code differs from the repository: %s\n' "${missing[@]}" >&2
+        echo 'Restore the committed files: git checkout -- gpu/third_party third_party' >&2
+        exit 1
+    fi
+}
 # Windows: MSYS2 CLANG64 (packages in packaging/windows/README.md). The GPU library is static
 # there and CMake links spartanport-probe.exe as well; no PGO (GCC-only flags), LTO off by default.
 case $(uname -s) in
@@ -11,15 +37,8 @@ MINGW*|MSYS*)
     for tool in clang cmake ninja pkg-config; do
         command -v "$tool" >/dev/null || { echo "Need $tool from MSYS2 CLANG64 (packaging/windows/README.md)." >&2; exit 1; }
     done
-    if [[ ! -f gpu/third_party/fsr-vulkan/CMakeLists.txt || ! -f gpu/third_party/imgui/imgui.h ||
-          ! -f gpu/third_party/xbyak/xbyak/xbyak.h ]]; then
-        git submodule update --init --recursive
-    fi
-    for patch in gpu/patches/fsr-vulkan/*.patch; do
-        if ! git -C gpu/third_party/fsr-vulkan apply --reverse --check "$PWD/$patch" 2>/dev/null; then
-            git -C gpu/third_party/fsr-vulkan apply "$PWD/$patch"
-        fi
-    done
+    check_vendored gpu/third_party/fsr-vulkan/CMakeLists.txt gpu/third_party/imgui/imgui.h \
+        gpu/third_party/xbyak/xbyak/xbyak.h
     cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSPARTAN_PGO=off \
         -DSPARTAN_LTO="${SPARTAN_LTO:-OFF}" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ >/dev/null
     echo "GPU library and loader: LTO ${SPARTAN_LTO:-OFF}"
@@ -31,7 +50,7 @@ MINGW*|MSYS*)
     cp out/gpu/basara4-core.exe out/basara4-core.exe
     cp out/gpu/spartanport-gpu-capabilities.exe out/gpu/spartanport-play.exe out/
     cp out/gpu/basara4-core.exe out/spartanport-probe.exe
-    clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole -o out/sumeragi-pad-mapper.exe
+    clang tools/gamepad_mapper.c $(pkg-config --cflags sdl3) -lSDL3 -mconsole -lxinput1_4 -o out/sumeragi-pad-mapper.exe
     cp out/sumeragi-pad-mapper.exe out/basara4-pad-mapper.exe
     mkdir -p bin
     cp out/sumeragi-core.exe bin/sumeragi-core.exe
@@ -44,13 +63,25 @@ MINGW*|MSYS*)
     fi
     echo "Built $PWD/out/sumeragi-core.exe ($PWD/out/basara4-core.exe) and gamepad mapper"
     if [[ ${1:-} == --test ]]; then
-        clang -std=c11 -O2 -g -Wall -Wextra -pthread -I. -Isrc tests/test_dlc_runtime.c -o out/dlc-runtime-test.exe
-        ./out/dlc-runtime-test.exe
-        clang -std=c11 -O2 -g -Wall -Wextra -I. -Isrc tests/test_content.c src/runtime_content.c -o out/content-test.exe
-        ./out/content-test.exe
-        ninja -C out/gpu pad-map-test
-        PATH="$PWD/bin:$PWD/out/gpu:$PATH" ./out/gpu/pad-map-test.exe
-        echo "C tests passed."
+        # Every C/C++ test is a *-test target registered with CTest in gpu/CMakeLists.txt (no error
+        # dialogs: tests/support/no_dialog.c); the Python tests are discovered from tests/.
+        if ! ninja -C out/gpu spartanport-tests > out/gpu-test-build.log 2>&1; then
+            grep -v '^\[' out/gpu-test-build.log | tail -40 >&2
+            echo 'Test build failed (full log: out/gpu-test-build.log)' >&2; exit 1
+        fi
+        # The Windows Python that runs the launcher and packaging/basara4/make_package.py (iced_x86,
+        # Tk), not MSYS2's: the Windows launcher "py -3" when present. PYTHON overrides it.
+        if [[ -n ${PYTHON:-} ]]; then python_cmd=("$PYTHON")
+        elif command -v py >/dev/null; then python_cmd=(py -3)
+        else python_cmd=(python); fi
+        failed=()
+        ctest --test-dir out/gpu --output-on-failure || failed+=('C/C++ (ctest)')
+        echo "Python tests: $("${python_cmd[@]}" -c 'import sys; print(sys.executable, sys.version.split()[0])')"
+        "${python_cmd[@]}" -m unittest discover -s tests || failed+=('Python (unittest)')
+        if (( ${#failed[@]} )); then
+            echo "Tests failed: ${failed[*]}" >&2; exit 1
+        fi
+        echo 'All tests passed'
     fi
     exit 0
     ;;
@@ -82,16 +113,7 @@ if [[ -z $pgo ]]; then
     if [[ -n $(find pgo -name '*.gcda' -print -quit 2>/dev/null) ]]; then pgo=use; else pgo=off; fi
 fi
 mkdir -p pgo
-# Submodules (git clone --recursive, or: git submodule update --init) and this port's changes
-# to FSR-Vulkan (gpu/patches/fsr-vulkan), applied to its working tree once.
-if [[ ! -f gpu/third_party/fsr-vulkan/CMakeLists.txt || ! -f gpu/third_party/imgui/imgui.h ]]; then
-    git submodule update --init --recursive
-fi
-for patch in gpu/patches/fsr-vulkan/*.patch; do
-    if ! git -C gpu/third_party/fsr-vulkan apply --reverse --check "$PWD/$patch" 2>/dev/null; then
-        git -C gpu/third_party/fsr-vulkan apply "$PWD/$patch"
-    fi
-done
+check_vendored gpu/third_party/fsr-vulkan/CMakeLists.txt gpu/third_party/imgui/imgui.h
 cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSPARTAN_PGO="$pgo" \
     -DSPARTAN_LTO="${SPARTAN_LTO:-ON}" -DSPARTAN_PGO_DIR="$PWD/pgo" >/dev/null
 echo "GPU library: PGO $pgo, LTO ${SPARTAN_LTO:-ON}"
@@ -129,8 +151,6 @@ if [[ ${1:-} == --test ]]; then
     out/sema-test
     "$CC" -std=c11 -D_GNU_SOURCE -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_content.c src/runtime_content.c -o out/content-test
     out/content-test
-    "$CC" -std=c11 -O2 -g -Wall -Wextra -I. -Isrc tests/test_dlc_runtime.c -o out/dlc-runtime-test
-    out/dlc-runtime-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_mp3.c src/runtime_mp3.c out/libatrac9.a -lm "${libraries[@]}" -o out/mp3-test
     out/mp3-test tests/data/sine.mp3
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread "${includes[@]}" -I. -Isrc tests/test_videodec.c "${libraries[@]}" -o out/videodec-test

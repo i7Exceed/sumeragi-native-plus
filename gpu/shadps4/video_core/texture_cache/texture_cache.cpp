@@ -18,11 +18,13 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_gpu_checkpoint.h"
+#include "video_core/renderer_vulkan/vk_render_trace.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_wait_diagnostics.h"
 #include "video_core/texture_cache/aliasing.h"
 #include "video_core/texture_cache/host_compatibility.h"
+#include "video_core/texture_cache/overlap_resolution.h"
 #include "video_core/texture_cache/texture_cache.h"
 #include <vulkan/vulkan_format_traits.hpp>
 #include "video_core/texture_cache/tile_manager.h"
@@ -64,12 +66,12 @@ TextureCache::TextureCache(const Vulkan::Instance& instance_, Vulkan::Scheduler&
     const s64 min_vacancy_expected = (6 * mem_threshold) / 10;
     const s64 min_vacancy_critical = (2 * mem_threshold) / 10;
     pressure_gc_memory = static_cast<u64>(
-        std::max<u64>(std::min(device_local_memory - min_vacancy_expected, min_spacing_expected),
-                      DEFAULT_PRESSURE_GC_MEMORY));
+        std::max<s64>(std::min(device_local_memory - min_vacancy_expected, min_spacing_expected),
+                      static_cast<s64>(DEFAULT_PRESSURE_GC_MEMORY)));
     critical_gc_memory = static_cast<u64>(
-        std::max<u64>(std::min(device_local_memory - min_vacancy_critical, min_spacing_critical),
-                      DEFAULT_CRITICAL_GC_MEMORY));
-    trigger_gc_memory = static_cast<u64>((device_local_memory - mem_threshold) / 2);
+        std::max<s64>(std::min(device_local_memory - min_vacancy_critical, min_spacing_critical),
+                      static_cast<s64>(DEFAULT_CRITICAL_GC_MEMORY)));
+    trigger_gc_memory = static_cast<u64>(std::max<s64>(0, (device_local_memory - mem_threshold) / 2));
 }
 
 TextureCache::~TextureCache() {
@@ -801,6 +803,16 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             return {merged_image_id, -1, -1};
         }
 
+        if (!image_info.props.is_depth && cache_image.info.props.is_depth &&
+            binding == BindingType::Texture &&
+            !Vulkan::LiverpoolToVK::IsFormatDepthCompatible(image_info.pixel_format) &&
+            !Vulkan::LiverpoolToVK::IsFormatStencilCompatible(image_info.pixel_format)) {
+            if (safe_to_delete) {
+                FreeImage(cache_image_id);
+            }
+            return {merged_image_id, -1, -1};
+        }
+
         if (const auto depth_image_id = ResolveDepthOverlap(image_info, binding, cache_image_id)) {
             return {depth_image_id, -1, -1};
         }
@@ -814,6 +826,59 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             (image_info.type == AmdGpu::ImageType::Color3D ||
              cache_image.info.type == AmdGpu::ImageType::Color3D)) {
             return {ExpandImage(image_info, cache_image_id), -1, -1};
+        }
+
+        if (image_info.size != cache_image.info.size) {
+            // Pool reuse at the same base address with different 2D dimensions (e.g. a 512x512
+            // character texture or half-res target reusing a freed 3840x2160 4K render target).
+            // Basara 4 PC: from v1.0.7 (13284dd), dropped in v1.0.8 (90bdc0b) without a stated
+            // reason. Without it a smaller target here fell to "use image view" below and drew
+            // into the corner of level 0 of the larger image: the cutscene double picture that
+            // v1.0.6/v1.0.7 had fixed. A separate image still shares the memory through the
+            // alias copies (texture_cache/aliasing.cpp).
+            if (safe_to_delete) {
+                FreeImage(cache_image_id);
+            }
+            return {merged_image_id, -1, -1};
+        }
+
+        if (!IsViewTypeCompatible(image_info.type, cache_image.info.type)) {
+            // Pool reuse at the same address with incompatible dimensionality (e.g. Color1D on Color2D).
+            // Basara 4 PC: a Color1D texture over a one-row Color2D target (the ulti LUT) holds
+            // the same texels. Its own 1D image is created as before (a 1D view of a 2D image is
+            // invalid, the v1.0.8 4K crash), and the cached image is kept even when old: it
+            // becomes the alias source, so the GPU-written row is copied into the 1D image
+            // (SynchronizeAlias) instead of the new image reading stale guest memory.
+            const bool shares_texels = GetAliasCopyExtent(cache_image.info, image_info) ||
+                                       GetAliasCopyExtent(image_info, cache_image.info);
+            Vulkan::RenderTrace::Count(Vulkan::RenderTrace::Counter::PoolTypeMismatches);
+            Vulkan::RenderTrace::LogOnce(
+                [&] {
+                    return fmt::format("pool_type_{}_{}_{}", u32(image_info.type),
+                                       u32(cache_image.info.type), int(shares_texels));
+                },
+                "tex.pool_type_mismatch",
+                [&] {
+                    const auto layout = [](const ImageInfo& i) {
+                        return fmt::format("{}x{}x{} {} pitch={} tile={} array={} swz={} pow2={} "
+                                           "lv={} ly={}",
+                                           i.size.width, i.size.height, i.size.depth,
+                                           vk::to_string(i.pixel_format), i.pitch,
+                                           u32(i.tile_mode), u32(i.array_mode),
+                                           u32(i.bank_swizzle), u32(i.props.is_pow2),
+                                           i.resources.levels, i.resources.layers);
+                    };
+                    return fmt::format("addr={:#x} new_type={} old_type={} safe={} alias={} "
+                                       "new=({}) old=({})",
+                                       image_info.guest_address, u32(image_info.type),
+                                       u32(cache_image.info.type), int(safe_to_delete),
+                                       int(shares_texels), layout(image_info),
+                                       layout(cache_image.info));
+                });
+            if (safe_to_delete && !shares_texels) {
+                FreeImage(cache_image_id);
+            }
+            return {merged_image_id, -1, -1};
         }
 
         const bool pow2_padding_only =
@@ -969,9 +1034,11 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
 
     // Right overlap, the image requested is a possible subresource of the image from cache.
     if (image_info.guest_address > cache_image.info.guest_address) {
-        if (auto mip = image_info.MipOf(cache_image.info); mip >= 0) {
-            if (auto slice = image_info.SliceOf(cache_image.info, mip); slice >= 0) {
-                return {cache_image_id, mip, slice};
+        if (IsViewTypeCompatible(image_info.type, cache_image.info.type)) {
+            if (auto mip = image_info.MipOf(cache_image.info); mip >= 0) {
+                if (auto slice = image_info.SliceOf(cache_image.info, mip); slice >= 0) {
+                    return {cache_image_id, mip, slice};
+                }
             }
         }
 
@@ -1092,10 +1159,17 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
             continue;
         }
         if (!IsVulkanFormatCompatible(cache_image.info.pixel_format, info.pixel_format) ||
-            (cache_image.info.type != info.type && info.size != Extent3D{1, 1, 1})) {
+            (cache_image.info.type != info.type &&
+             (info.size != Extent3D{1, 1, 1} ||
+              !IsViewTypeCompatible(desc.view_info.type, cache_image.info.type)))) {
             continue;
         }
         if (exact_fmt && info.pixel_format != cache_image.info.pixel_format) {
+            continue;
+        }
+        if (cache_image.info.props.is_depth != info.props.is_depth &&
+            !Vulkan::LiverpoolToVK::IsFormatDepthCompatible(info.pixel_format) &&
+            !Vulkan::LiverpoolToVK::IsFormatStencilCompatible(info.pixel_format)) {
             continue;
         }
         image_id = cache_id;
@@ -1126,33 +1200,109 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     int view_mip{-1};
     int view_slice{-1};
     if (!image_id) {
-        for (const auto& cache_id : image_ids) {
-            view_mip = -1;
-            view_slice = -1;
-
-            const auto& merged_info = image_id ? slot_images[image_id].info : info;
-            auto [overlap_image_id, overlap_view_mip, overlap_view_slice] =
-                ResolveOverlap(merged_info, desc.type, cache_id, image_id, desc.needs_native);
-            if (overlap_image_id) {
-                image_id = overlap_image_id;
-                view_mip = overlap_view_mip;
-                view_slice = overlap_view_slice;
+        // Basara 4 PC (cutscene double picture): the loop is in
+        // overlap_resolution.h. The returned view is the request's location in the returned image,
+        // whatever order image_ids lists the overlapping images in.
+        const OverlapLoopResult overlap = RunOverlapLoop(
+            std::span<const ImageId>{image_ids.data(), image_ids.size()},
+            [&](ImageId cache_id, ImageId merged_id) {
+                const auto& merged_info = merged_id ? slot_images[merged_id].info : info;
+                return ResolveOverlap(merged_info, desc.type, cache_id, merged_id,
+                                      desc.needs_native);
+            },
+            [&](ImageId candidate_id) -> std::pair<s32, s32> {
+                // As ResolveOverlap's right overlap, for the request itself.
+                const ImageInfo& candidate = slot_images[candidate_id].info;
+                if (!IsViewTypeCompatible(info.type, candidate.type)) {
+                    return {-1, -1};
+                }
+                const s32 mip = info.MipOf(candidate);
+                return {mip, mip >= 0 ? info.SliceOf(candidate, mip) : -1};
+            });
+        image_id = overlap.image_id;
+        view_mip = overlap.view_mip;
+        view_slice = overlap.view_slice;
+        const auto describe = [&](ImageId id) -> std::string {
+            if (!id) {
+                return "none";
             }
+            const ImageInfo& i = slot_images[id].info;
+            return fmt::format("{:#x} {} {}x{} lv={} ly={}", i.guest_address,
+                               vk::to_string(i.pixel_format), i.size.width, i.size.height,
+                               i.resources.levels, i.resources.layers);
+        };
+        if (overlap.KeptView()) {
+            // The old loop ended this request at level/layer 0 (drawn into the corner of level 0).
+            Vulkan::RenderTrace::Count(Vulkan::RenderTrace::Counter::OverlapViewKept);
+            Vulkan::RenderTrace::RecordAnomaly(Vulkan::RenderTrace::Anomaly::TexOverlapViewKept, [&] {
+                return fmt::format(
+                    "req={:#x} {} {}x{} size={:#x} binding={} view=(m{} s{}) image=({}) "
+                    "old_view=(m{} s{}) dropped_by=({}) cached={}",
+                    info.guest_address, vk::to_string(info.pixel_format), info.size.width,
+                    info.size.height, info.guest_size, static_cast<int>(desc.type),
+                    overlap.view_mip, overlap.view_slice, describe(overlap.image_id),
+                    overlap.legacy_view_mip, overlap.legacy_view_slice,
+                    describe(overlap.legacy_dropped_by), image_ids.size());
+            });
+        }
+        if (overlap.LostView()) {
+            // A location at mip/slice > 0 still ends at level/layer 0: the image changed to one
+            // that does not contain the request. Not expected after the rule above.
+            Vulkan::RenderTrace::Count(Vulkan::RenderTrace::Counter::OverlapViewLost);
+            Vulkan::RenderTrace::RecordAnomaly(
+                Vulkan::RenderTrace::Anomaly::TexOverlapViewLost,
+                [&] {
+                    return fmt::format(
+                        "req={:#x} {} {}x{} size={:#x} binding={} lost=(m{} s{}) in=({}) "
+                        "final=({}) view=(m{} s{}) cached={}",
+                        info.guest_address, vk::to_string(info.pixel_format), info.size.width,
+                        info.size.height, info.guest_size, static_cast<int>(desc.type),
+                        overlap.found_mip, overlap.found_slice, describe(overlap.found_in),
+                        describe(overlap.image_id), overlap.view_mip, overlap.view_slice,
+                        image_ids.size());
+                },
+                true);
         }
     }
 
     if (image_id) {
         Image& image_resolved = slot_images[image_id];
+        const bool depth_mismatch =
+            (image_resolved.info.props.is_depth != info.props.is_depth &&
+             !Vulkan::LiverpoolToVK::IsFormatDepthCompatible(info.pixel_format) &&
+             !Vulkan::LiverpoolToVK::IsFormatStencilCompatible(info.pixel_format));
         if (exact_fmt && info.pixel_format != image_resolved.info.pixel_format) {
             // Cannot reuse this image as we need the exact requested format.
             image_id = {};
             created.reason = "exact format";
         } else if (image_resolved.info.resources < info.resources) {
             // The image was clearly picked up wrong.
+            Vulkan::RenderTrace::Count(Vulkan::RenderTrace::Counter::OverlapResolveFails);
+            Vulkan::RenderTrace::RecordAnomaly(Vulkan::RenderTrace::Anomaly::TexOverlapFail, [&] {
+                return fmt::format("addr={:#x} {} {}x{} res=({},{}) vs cached=({},{})",
+                                   info.guest_address, vk::to_string(info.pixel_format),
+                                   info.size.width, info.size.height, info.resources.levels,
+                                   info.resources.layers, image_resolved.info.resources.levels,
+                                   image_resolved.info.resources.layers);
+            });
             FreeImage(image_id);
             image_id = {};
             LOG_WARNING(Render_Vulkan, "Image overlap resolve failed");
             created.reason = "fewer resources";
+        } else if (depth_mismatch) {
+            image_id = {};
+            created.reason = "depth mismatch";
+        } else if (!IsViewTypeCompatible(desc.view_info.type, image_resolved.info.type)) {
+            // Basara 4 PC: kept when it shares its texels with the new image (see ResolveOverlap):
+            // the alias copy brings its GPU-written content over.
+            const bool shares_texels = GetAliasCopyExtent(image_resolved.info, info) ||
+                                       GetAliasCopyExtent(info, image_resolved.info);
+            if (!shares_texels && scheduler.CurrentTick() - image_resolved.tick_accessed_last >
+                                      NumFramesBeforeRemoval) {
+                FreeImage(image_id);
+            }
+            image_id = {};
+            created.reason = "incompatible view type";
         }
     }
     // Create and register a new image
@@ -1177,38 +1327,43 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
     }
 
-    Image& image = slot_images[image_id];
-    image.tick_accessed_last = scheduler.CurrentTick();
-    TouchImage(image);
+    Image* p_image = &slot_images[image_id];
+    p_image->tick_accessed_last = scheduler.CurrentTick();
+    TouchImage(*p_image);
 
     // Basara 4 PC: a colour texture (RGBA16F, 3 levels) came back as a depth image and was drawn as its depth, red.
     // List every image cached at this address and what the lookup decided, once per occurrence (16 at most).
-    if (image.info.props.is_depth && !info.props.is_depth && !Vulkan::LiverpoolToVK::IsFormatDepthCompatible(info.pixel_format) &&
+    if (p_image->info.props.is_depth && !info.props.is_depth && !Vulkan::LiverpoolToVK::IsFormatDepthCompatible(info.pixel_format) &&
         !Vulkan::LiverpoolToVK::IsFormatStencilCompatible(info.pixel_format)) {
+        Vulkan::RenderTrace::Count(Vulkan::RenderTrace::Counter::DepthColorSubstitutions);
+        Vulkan::RenderTrace::RecordAnomaly(
+            Vulkan::RenderTrace::Anomaly::TexFindDepthSubstitute,
+            [&] {
+                return fmt::format("addr={:#x} want={} {}x{} got={} {}x{}", info.guest_address,
+                                   vk::to_string(info.pixel_format), info.size.width,
+                                   info.size.height, vk::to_string(p_image->info.pixel_format),
+                                   p_image->info.size.width, p_image->info.size.height);
+            },
+            true);
         static u32 logged = 0;
         if (logged++ < 16) {
             LOG_WARNING(Render_Vulkan,
                         "[{}] FindImage: wanted {} {}x{} levels {} layers {} size {:#x} at {:#x} binding {} exact {}: got the depth image "
-                        "{:#x} {} {}x{} levels {} size {:#x} (view mip {} slice {}, {} cached at this address)",
+                        "{:#x} {} {}x{} levels {} size {:#x} (view mip {} slice {}, {} cached at this address); creating fresh colour image",
                         Vulkan::GpuCheckpoint::WallClock(), vk::to_string(info.pixel_format), info.size.width, info.size.height, info.resources.levels,
                         info.resources.layers, info.guest_size, info.guest_address, static_cast<int>(desc.type),
-                        exact_fmt, image.info.guest_address, vk::to_string(image.info.pixel_format),
-                        image.info.size.width, image.info.size.height, image.info.resources.levels,
-                        image.info.guest_size, view_mip, view_slice, image_ids.size());
-            for (const auto& cache_id : image_ids) {
-                const auto& c = slot_images[cache_id];
-                LOG_WARNING(Render_Vulkan,
-                            "  cached {:#x} {} {}x{} levels {} layers {} size {:#x} bits {} depth {} target {} gpu-modified {} "
-                            "registered {} idle {} ticks{}",
-                            c.info.guest_address, vk::to_string(c.info.pixel_format), c.info.size.width,
-                            c.info.size.height, c.info.resources.levels, c.info.resources.layers, c.info.guest_size,
-                            c.info.num_bits, c.info.props.is_depth ? 1 : 0, c.binding.is_target ? 1 : 0,
-                            True(c.flags & ImageFlagBits::GpuModified) ? 1 : 0,
-                            True(c.flags & ImageFlagBits::Registered) ? 1 : 0,
-                            scheduler.CurrentTick() - c.tick_accessed_last, cache_id == image_id ? " (chosen)" : "");
-            }
+                        exact_fmt, p_image->info.guest_address, vk::to_string(p_image->info.pixel_format),
+                        p_image->info.size.width, p_image->info.size.height, p_image->info.resources.levels,
+                        p_image->info.guest_size, view_mip, view_slice, image_ids.size());
         }
+        image_id = slot_images.insert(instance, runtime, slot_image_views, info);
+        RegisterImage(image_id);
+        p_image = &slot_images[image_id];
+        p_image->tick_accessed_last = scheduler.CurrentTick();
+        TouchImage(*p_image);
+        view_mip = view_slice = -1;
     }
+    Image& image = *p_image;
 
     // If the image requested is a subresource of the image from cache record its location.
     if (view_mip > 0) {

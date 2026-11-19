@@ -23,20 +23,22 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
-/* sceKernelGetDirectMemorySize on retail PS4: 5056 MiB. SPARTAN_DMEM_MB raises it (the resolution
- * patches above 1080p need about 4 GiB more; run.sh sets it). */
+/* sceKernelGetDirectMemorySize on retail PS4: 5056 MiB. Set to 3136 MiB default on PC
+ * to fit Capcom MT Framework's initial 2048 MiB heap while avoiding Windows commitment limit (error 1455).
+ * SPARTAN_DMEM_MB raises it (the resolution patches above 1080p need about 4 GiB more; run.sh sets it). */
 static uint64_t pool_size_bytes(void) {
     static uint64_t size;
     if (!size) {
         const char *env = getenv("SPARTAN_DMEM_MB");
         uint64_t mb = env ? strtoull(env, NULL, 10) : 0;
-        if (mb < 5056 || mb > 16384) mb = 5056;
+        if (mb < 2048 || mb > 16384) mb = 3136;
         size = mb * 1024 * 1024;
     }
     return size;
 }
 #define POOL_SIZE pool_size_bytes()
-#define FLEXIBLE_SIZE (UINT64_C(448) * 1024 * 1024)
+#define FLEXIBLE_SIZE (UINT64_C(64) * 1024 * 1024)
+#define FLEX_SPAN (UINT64_C(64) * 1024 * 1024)
 #define PAGE UINT64_C(16384)
 #define USER_MIN UINT64_C(0x1000000000)
 #define USER_MAX UINT64_C(0xfc00000000)
@@ -81,7 +83,6 @@ static Vma *vmas; static size_t vma_count, vma_capacity;
 static int pool_fd=-1;
 #endif
 static unsigned char *backing_base; /* second view of the pool: host writes bypass guest/GPU page protection */
-#define FLEX_SPAN (UINT64_C(1024) * 1024 * 1024)
 static uint64_t flex_bitmap[FLEX_SPAN/PAGE/64];
 /* GPU hooks (spartanportgpu): notified outside the lock, in order, after each operation. */
 typedef void (*GpuRange)(uintptr_t address, uint64_t size);
@@ -231,18 +232,35 @@ static int host_protect(uintptr_t address, uint64_t size, int prot) {
 }
 /* Released pages read as zero when reused, like the memfd's punched holes. */
 static void host_discard(uint64_t phys, uint64_t size) { memset(backing_base+phys,0,size); }
-/* Direct memory occupies [0,POOL_SIZE) of the section, flexible memory [POOL_SIZE,+FLEX_SPAN). */
+static int host_commit(uint64_t phys, uint64_t size) {
+    if (VirtualAlloc(backing_base+phys,size,MEM_COMMIT,PAGE_READWRITE)) return 0;
+    DWORD err = GetLastError();
+    fprintf(stderr,"Runtime: cannot create %" PRIu64 " MiB of guest memory (error %lu: ERROR_COMMITMENT_LIMIT); is the page file large enough?\n"
+                   "Windows Virtual Memory (Paging File) is too small or disabled. Enable 'Automatically manage paging file size' in Windows Settings.\n",
+            (live_bytes+flexible_bytes+size)>>20, err);
+    return -1;
+}
+/* Direct memory occupies [0,POOL_SIZE) of the section, flexible memory [POOL_SIZE,+FLEX_SPAN).
+ * SEC_RESERVE avoids charging the entire 3.2 GiB pool against Windows commit limit up front;
+ * only physical ranges actually allocated by the game (~1.15 GiB) are committed via host_commit. */
 static int pool(void) {
     if (backing_base) return 0;
     runtime_memory_reserve();
     uint64_t bytes=POOL_SIZE+FLEX_SPAN;
-    section=CreateFileMapping2(INVALID_HANDLE_VALUE,NULL,FILE_MAP_ALL_ACCESS,PAGE_EXECUTE_READWRITE,SEC_COMMIT,bytes,NULL,NULL,0);
-    if (!section) { fprintf(stderr,"Runtime: cannot create %" PRIu64 " MiB of guest memory (error %lu); is the page file large enough?\n",bytes>>20,GetLastError()); return -1; }
+    section=CreateFileMapping2(INVALID_HANDLE_VALUE,NULL,FILE_MAP_ALL_ACCESS,PAGE_EXECUTE_READWRITE,SEC_RESERVE,bytes,NULL,NULL,0);
+    if (!section) {
+        DWORD err = GetLastError();
+        fprintf(stderr,"Runtime: cannot create %" PRIu64 " MiB of guest memory (error %lu: ERROR_COMMITMENT_LIMIT); is the page file large enough?\n"
+                       "Windows Virtual Memory (Paging File) is too small or disabled. Enable 'Automatically manage paging file size' in Windows Settings.\n",
+                bytes>>20, err);
+        return -1;
+    }
     backing_base=MapViewOfFile3(section,GetCurrentProcess(),NULL,0,bytes,0,PAGE_READWRITE,NULL,0);
     return backing_base ? 0 : -1;
 }
 #else
 /* Direct memory occupies [0,POOL_SIZE) of the memfd, flexible memory [POOL_SIZE,+FLEX_SPAN). */
+static int host_commit(uint64_t phys, uint64_t size) { (void)phys; (void)size; return 0; }
 static int pool(void) {
     if (pool_fd>=0) return 0;
     pool_fd=memfd_create("spartanport-guest-memory", MFD_CLOEXEC);
@@ -293,7 +311,12 @@ static uint64_t flex_alloc(uint64_t size) {
     uint64_t pages=size/PAGE, total=FLEX_SPAN/PAGE, run=0;
     for (uint64_t p=0;p<total;++p) {
         run = flex_test(p) ? 0 : run+1;
-        if (run==pages) { flex_set(p+1-pages,pages,1); return POOL_SIZE+(p+1-pages)*PAGE; }
+        if (run==pages) {
+            uint64_t phys=POOL_SIZE+(p+1-pages)*PAGE;
+            if (host_commit(phys,size)) return UINT64_MAX;
+            flex_set(p+1-pages,pages,1);
+            return phys;
+        }
     }
     return UINT64_MAX;
 }
@@ -426,6 +449,7 @@ static ABI int32_t direct_allocate(int64_t low, int64_t high, uint64_t size,
         }
         if (!overlap) break;
     }
+    if (host_commit(start, size)) { write_unlock(); return NO_MEMORY; }
     blocks[slot] = (Block){start, size, type, 1}; *out = (int64_t)start;
     ++allocations; live_bytes += size;
     write_unlock();

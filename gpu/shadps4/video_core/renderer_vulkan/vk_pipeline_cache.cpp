@@ -32,6 +32,7 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_lighting_test.h"
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
+#include "video_core/renderer_vulkan/vk_render_trace.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 
@@ -515,6 +516,13 @@ bool PipelineCache::QueueShader(Program& program, HwStage stage, SwStage l_stage
         }
         LOG_ERROR(Render_Vulkan, "spartanport: shader {:#x}/{} capture failed: {}", params.hash,
                   permutation, capture_job.Error());
+        RenderTrace::Count(RenderTrace::Counter::ShaderCaptureFails);
+        RenderTrace::RecordAnomaly(
+            RenderTrace::Anomaly::ShaderCaptureFail,
+            [&] {
+                return fmt::format("{:#x}/{} {}", params.hash, permutation, capture_job.Error());
+            },
+            true);
         return false;
     }
     const bool queued = build->job.Start(*compiler, [this, build] {
@@ -564,6 +572,14 @@ void PipelineCache::PublishShaders(bool wait) {
                 program->pending.reset();
                 LOG_ERROR(Render_Vulkan, "spartanport: shader {:#x}/{} compilation failed: {}", hash,
                           build->permutation, build->job.Error());
+                RenderTrace::Count(RenderTrace::Counter::ShaderCompileFails);
+                RenderTrace::RecordAnomaly(
+                    RenderTrace::Anomaly::ShaderCompileFail,
+                    [&] {
+                        return fmt::format("{:#x}/{} {}", hash, build->permutation,
+                                           build->job.Error());
+                    },
+                    true);
                 retire();
             } else {
                 ++i;
@@ -604,16 +620,28 @@ void PipelineCache::PublishGraphics(bool wait) {
             if (build->job.Failed() && !build->failure_logged) {
                 LOG_ERROR(Render_Vulkan, "spartanport: pipeline {:#x} compilation failed: {}",
                           std::hash<GraphicsPipelineKey>{}(it.key()), build->job.Error());
+                RenderTrace::Count(RenderTrace::Counter::GraphicsPipelineFails);
+                RenderTrace::RecordAnomaly(
+                    RenderTrace::Anomaly::GraphicsPipelineAsyncFail,
+                    [&] {
+                        return fmt::format("{:#x} {}", std::hash<GraphicsPipelineKey>{}(it.key()),
+                                           build->job.Error());
+                    },
+                    true);
                 build->failure_logged = true;
             }
             ++it;
             continue;
         }
         const auto key = it.key();
-        build->pipeline->PublishStages(build->live_infos);
-        RegisterPipelineData(key, std::hash<GraphicsPipelineKey>{}(key), build->data);
-        graphics_pipelines.emplace(key, std::move(build->pipeline));
-        ++num_new_pipelines;
+        if (build->pipeline && build->pipeline->IsValid()) {
+            build->pipeline->PublishStages(build->live_infos);
+            RegisterPipelineData(key, std::hash<GraphicsPipelineKey>{}(key), build->data);
+            graphics_pipelines.emplace(key, std::move(build->pipeline));
+            ++num_new_pipelines;
+        } else {
+            graphics_pipelines.emplace(key, nullptr);
+        }
         it = pending_graphics.erase(it);
     }
 }
@@ -698,7 +726,8 @@ const GraphicsPipeline* PipelineCache::TryPreparedPipeline(const PreparedDraw& p
         }
     }
     const auto it = graphics_pipelines.find(prepared.key);
-    return it != graphics_pipelines.end() ? it->second.get() : nullptr;
+    return it != graphics_pipelines.end() && it->second && it->second->IsValid() ? it->second.get()
+                                                                                 : nullptr;
 }
 
 const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectParams params,
@@ -718,13 +747,14 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
     if (!RefreshGraphicsKey(sel)) {
         if (sel.compilation_pending) {
             ++g_spartanport_pending_draws;
+            RenderTrace::Count(RenderTrace::Counter::PipelinePendingDrops);
         }
         return nullptr;
     }
     if (AsyncCompilation() && !sel.regs->stage_enable.hs_en && !EmulatorSettings.IsShaderCollect()) {
         const auto found = graphics_pipelines.find(sel.graphics_key);
         if (found != graphics_pipelines.end()) {
-            return found->second.get();
+            return found->second && found->second->IsValid() ? found->second.get() : nullptr;
         }
         if (!pending_graphics.contains(sel.graphics_key) && compiler->HasCapacity()) {
             PhaseTimer capture{g_spartanport_snapshot_ns};
@@ -757,6 +787,7 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
             }
         }
         ++g_spartanport_pending_draws;
+        RenderTrace::Count(RenderTrace::Counter::PipelinePendingDrops);
         return nullptr;
     }
     const auto [it, is_new] = graphics_pipelines.try_emplace(sel.graphics_key);
@@ -766,24 +797,26 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         CompileTimer timer;
 
         GraphicsPipeline::SerializationSupport sdata{};
-        it.value() = std::make_unique<GraphicsPipeline>(
+        auto built = std::make_unique<GraphicsPipeline>(
             instance, scheduler, desc_heap, profile, sel.graphics_key, *pipeline_cache, sel.infos,
             sel.runtime_infos, sel.fetch_shader, sel.modules, sdata, false);
+        if (built->IsValid()) {
+            it.value() = std::move(built);
+            RegisterPipelineData(sel.graphics_key, pipeline_hash, sdata);
+            ++num_new_pipelines;
 
-        RegisterPipelineData(sel.graphics_key, pipeline_hash, sdata);
-        ++num_new_pipelines;
-
-        if (EmulatorSettings.IsShaderCollect()) {
-            for (auto stage = 0; stage < MaxShaderStages; ++stage) {
-                if (sel.infos[stage]) {
-                    auto& m = sel.modules[stage];
-                    module_related_pipelines[m].emplace_back(sel.graphics_key);
+            if (EmulatorSettings.IsShaderCollect()) {
+                for (auto stage = 0; stage < MaxShaderStages; ++stage) {
+                    if (sel.infos[stage]) {
+                        auto& m = sel.modules[stage];
+                        module_related_pipelines[m].emplace_back(sel.graphics_key);
+                    }
                 }
             }
         }
         sel.fetch_shader.reset();
     }
-    return it->second.get();
+    return it->second && it->second->IsValid() ? it->second.get() : nullptr;
 }
 
 const ComputePipeline* PipelineCache::GetComputePipeline() {
@@ -800,18 +833,21 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
         CompileTimer timer;
 
         ComputePipeline::SerializationSupport sdata{};
-        it.value() = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
+        auto built = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
                                                        *pipeline_cache, compute_key, *sel.infos[0],
                                                        sel.modules[0], sdata, false);
-        RegisterPipelineData(compute_key, sdata);
-        ++num_new_pipelines;
+        if (built->IsValid()) {
+            it.value() = std::move(built);
+            RegisterPipelineData(compute_key, sdata);
+            ++num_new_pipelines;
 
-        if (EmulatorSettings.IsShaderCollect()) {
-            auto& m = sel.modules[0];
-            module_related_pipelines[m].emplace_back(compute_key);
+            if (EmulatorSettings.IsShaderCollect()) {
+                auto& m = sel.modules[0];
+                module_related_pipelines[m].emplace_back(compute_key);
+            }
         }
     }
-    return it->second.get();
+    return it->second && it->second->IsValid() ? it->second.get() : nullptr;
 }
 
 bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
@@ -1045,10 +1081,14 @@ bool PipelineCache::RefreshGraphicsStages(PipelineSelection& sel) {
     case AmdGpu::ShaderStageEnable::VgtStages::EsGs:
         if (!instance.IsGeometryStageSupported()) {
             LOG_WARNING(Render_Vulkan, "Geometry shader stage unsupported, skipping");
+            RenderTrace::RecordAnomaly(RenderTrace::Anomaly::UnsupportedShaderStage,
+                                       "EsGs geometry unsupported", true);
             return false;
         }
         if (regs.vgt_gs_mode.onchip || regs.vgt_strmout_config.raw) {
             LOG_WARNING(Render_Vulkan, "Geometry shader features unsupported, skipping");
+            RenderTrace::RecordAnomaly(RenderTrace::Anomaly::UnsupportedShaderStage,
+                                       "EsGs onchip/strmout unsupported");
             return false;
         }
         if (!bind_stage(HwStage::Export, SwStage::Vertex)) {
@@ -1105,6 +1145,9 @@ bool PipelineCache::RefreshGraphicsStages(PipelineSelection& sel) {
         break;
     default:
         LOG_WARNING(Render_Vulkan, "unimplemented shader stage {}", (u32)regs.stage_enable.raw);
+        RenderTrace::RecordAnomaly(RenderTrace::Anomaly::UnsupportedShaderStage, [&] {
+            return fmt::format("stage_enable={:#x}", u32(regs.stage_enable.raw));
+        });
         return false;
     }
 

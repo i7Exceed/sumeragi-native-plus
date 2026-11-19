@@ -43,7 +43,7 @@ endif()
 find_package(Vulkan REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED)
-# spartanport (Windows): MSYS2 has no magic_enum/miniz packages; the submodules are used instead.
+# spartanport (Windows): MSYS2 has no magic_enum/miniz packages; the vendored copies in third_party/ are used instead.
 find_package(magic_enum QUIET)
 if (NOT magic_enum_FOUND)
     add_library(magic_enum INTERFACE)
@@ -197,7 +197,7 @@ if (WIN32)
     target_compile_options(atrac9 PRIVATE -w)
     set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
     add_executable(spartanport-probe ../src/probe.c ${SPARTAN_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
-        ../src/isa_rewrite.c ../src/isa_emulate.c
+        ../src/isa_rewrite.c ../src/isa_emulate.c ../src/crash_dump_win.c
         ../packaging/windows/spartanport-probe.rc)
     set_target_properties(spartanport-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF OUTPUT_NAME basara4-core)
     target_compile_options(spartanport-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
@@ -206,6 +206,12 @@ if (WIN32)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     target_link_options(spartanport-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
+    # Basara 4 PC: a crashing child writes a minidump that dbghelp can read back (ninja -C out/gpu crash-dump-test).
+    add_executable(crash-dump-test EXCLUDE_FROM_ALL ../tests/test_crash_dump.c ../src/crash_dump_win.c)
+    set_target_properties(crash-dump-test PROPERTIES C_STANDARD 11)
+    target_compile_options(crash-dump-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+    target_include_directories(crash-dump-test PRIVATE ../src)
+    target_link_libraries(crash-dump-test PRIVATE dbghelp)
     # spartanport: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)
@@ -254,6 +260,27 @@ if (WIN32)
     target_compile_options(tsc-clock-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
     target_include_directories(tsc-clock-test PRIVATE .. ../src)
     target_link_libraries(tsc-clock-test PRIVATE bcrypt -pthread)
+    # Basara 4 PC: the runtime tests build.sh --test used to build only on Linux (tests/test_pad.c,
+    # test_content.c, test_file_mods.c, test_runtime.c, test_sema.c), with the probe's Windows sources.
+    add_executable(pad-test EXCLUDE_FROM_ALL ../tests/test_pad.c ../src/compat_win.c)
+    add_executable(content-test EXCLUDE_FROM_ALL ../tests/test_content.c ../src/runtime_content.c ../src/compat_win.c)
+    add_executable(file-mods-test EXCLUDE_FROM_ALL ../tests/test_file_mods.c ../src/compat_win.c)
+    add_executable(runtime-test EXCLUDE_FROM_ALL ../tests/test_runtime.c ${SPARTAN_RUNTIME} ../src/compat_win.c
+        ../src/crash_dump_win.c)
+    add_executable(sema-test EXCLUDE_FROM_ALL ../tests/test_sema.c ${SPARTAN_RUNTIME} ../src/compat_win.c
+        ../src/crash_dump_win.c)
+    foreach(test pad-test content-test file-mods-test runtime-test sema-test)
+        set_target_properties(${test} PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+        target_compile_options(${test} PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+        target_include_directories(${test} PRIVATE .. ../src)
+        target_link_libraries(${test} PRIVATE bcrypt -pthread)
+    endforeach()
+    target_link_libraries(pad-test PRIVATE PkgConfig::SDL3)
+    foreach(test runtime-test sema-test)
+        target_link_libraries(${test} PRIVATE spartanportgpu atrac9 onecore ws2_32)
+        # The runtime reserves the PS4 address range at start, as in spartanport-probe.
+        target_link_options(${test} PRIVATE -Wl,--disable-high-entropy-va)
+    endforeach()
     add_executable(spartanport-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/spartanport-gpu-capabilities.rc)
     target_include_directories(spartanport-gpu-capabilities PRIVATE shadps4)
     target_link_libraries(spartanport-gpu-capabilities PRIVATE Vulkan::Vulkan)
@@ -270,26 +297,12 @@ target_compile_definitions(pipeline-binary-cache-test PRIVATE NOMINMAX WIN32_LEA
 target_include_directories(pipeline-binary-cache-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(pipeline-binary-cache-test PRIVATE spartanportgpu)
 target_compile_options(pipeline-binary-cache-test PRIVATE -fPIC)
-if (WIN32)
-    target_sources(pipeline-binary-cache-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pipeline-binary-cache-test PRIVATE sigjmp_buf=spartanport_jmp_buf)
-    target_compile_options(pipeline-binary-cache-test PRIVATE
-        -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
-    target_link_libraries(pipeline-binary-cache-test PRIVATE onecore)
-endif()
 add_executable(pipeline-binary-initialization-test EXCLUDE_FROM_ALL
     ../tests/test_pipeline_binary_initialization.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_compile_definitions(pipeline-binary-initialization-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_include_directories(pipeline-binary-initialization-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(pipeline-binary-initialization-test PRIVATE spartanportgpu)
 target_compile_options(pipeline-binary-initialization-test PRIVATE -fPIC)
-if (WIN32)
-    target_sources(pipeline-binary-initialization-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pipeline-binary-initialization-test PRIVATE sigjmp_buf=spartanport_jmp_buf)
-    target_compile_options(pipeline-binary-initialization-test PRIVATE
-        -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
-    target_link_libraries(pipeline-binary-initialization-test PRIVATE onecore)
-endif()
 set_source_files_properties(../tests/test_pipeline_binary_cache.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 add_executable(motion-history-test EXCLUDE_FROM_ALL ../tests/test_motion_history.cpp)
@@ -298,6 +311,15 @@ target_include_directories(motion-history-test PRIVATE ..)
 add_executable(motion-shader-test EXCLUDE_FROM_ALL ../tests/test_motion_shaders.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(motion-shader-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(motion-shader-test PRIVATE spartanportgpu)
+# Basara 4 PC: FindImage's overlap loop (cutscene double picture). "--expect-fixed" is
+# expected to fail until the loop keeps the subresource location (see the test's header).
+add_executable(overlap-loop-test EXCLUDE_FROM_ALL ../tests/test_overlap_loop.cpp ../tests/test_overlap_loop_stubs.cpp
+    shadps4/video_core/texture_cache/image_info.cpp shadps4/video_core/texture_cache/host_compatibility.cpp
+    shadps4/video_core/amdgpu/tiling.cpp shadps4/video_core/amdgpu/pixel_format.cpp
+    shim/common/assert.cpp shim/common/logging/log.cpp $<$<BOOL:${WIN32}>:../src/crash_dump_win.c>)
+target_compile_options(overlap-loop-test PRIVATE -UNDEBUG)
+target_include_directories(overlap-loop-test PRIVATE shim shadps4 third_party/gcn/include)
+target_link_libraries(overlap-loop-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
 add_executable(png-decode-test EXCLUDE_FROM_ALL ../tests/test_png_decode.cpp shim/spartanport_png.cpp)
 target_compile_options(png-decode-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 target_link_libraries(png-decode-test PRIVATE PkgConfig::FFMPEG)
@@ -328,6 +350,18 @@ add_executable(frame-capture-test EXCLUDE_FROM_ALL ../tests/test_frame_capture.c
 target_compile_options(frame-capture-test PRIVATE -UNDEBUG)
 target_include_directories(frame-capture-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(frame-capture-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
+add_executable(render-trace-test EXCLUDE_FROM_ALL ../tests/test_render_trace.cpp)
+target_compile_options(render-trace-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+target_include_directories(render-trace-test PRIVATE shadps4)
+add_executable(render-trace-off-test EXCLUDE_FROM_ALL ../tests/test_render_trace_off.cpp)
+target_compile_options(render-trace-off-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+target_include_directories(render-trace-off-test PRIVATE shadps4)
+add_executable(present-summary-test EXCLUDE_FROM_ALL ../tests/test_present_summary.cpp)
+target_compile_options(present-summary-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+target_include_directories(present-summary-test PRIVATE shadps4)
+add_executable(render-trace-open-fail-test EXCLUDE_FROM_ALL ../tests/test_render_trace_open_fail.cpp)
+target_compile_options(render-trace-open-fail-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+target_include_directories(render-trace-open-fail-test PRIVATE shadps4)
 add_executable(lighting-test-knob-test EXCLUDE_FROM_ALL ../tests/test_lighting_test.cpp)
 target_compile_options(lighting-test-knob-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 target_include_directories(lighting-test-knob-test PRIVATE shadps4)
@@ -364,13 +398,13 @@ add_executable(scene-resolution-test EXCLUDE_FROM_ALL ../tests/test_scene_resolu
 target_include_directories(scene-resolution-test PRIVATE shim shadps4 third_party/gcn/include)
 # The test's Vulkan-Hpp inline methods have a different set of platform extensions
 # from vk_platform.cpp. Keep them local and use an explicit dispatcher in the test.
-target_compile_options(scene-resolution-test PRIVATE -UNDEBUG -fPIC)
+target_compile_options(scene-resolution-test PRIVATE -fPIC)
 set_source_files_properties(../tests/test_scene_resolution.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 target_link_libraries(scene-resolution-test PRIVATE spartanportgpu)
 add_executable(taa-shader-test EXCLUDE_FROM_ALL ../tests/test_taa_shader.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(taa-shader-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
-target_compile_options(taa-shader-test PRIVATE -UNDEBUG -fPIC)
+target_compile_options(taa-shader-test PRIVATE -fPIC)
 set_source_files_properties(../tests/test_taa_shader.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 target_link_libraries(taa-shader-test PRIVATE spartanportgpu)
@@ -378,9 +412,31 @@ add_dependencies(taa-shader-test host_shaders)
 
 add_executable(camera-motion-test EXCLUDE_FROM_ALL ../tests/test_camera_motion.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(camera-motion-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
-target_compile_options(camera-motion-test PRIVATE -UNDEBUG -fPIC)
+target_compile_options(camera-motion-test PRIVATE -fPIC)
 target_link_libraries(camera-motion-test PRIVATE spartanportgpu)
 add_dependencies(camera-motion-test host_shaders)
+# Basara 4 PC: the renderer tests on tests/test_gpu_runtime_stubs.cpp link the static GPU library on
+# Windows, so they need the runtime's Windows layer (compat_win.c) and the crash dump writer that
+# gpu/shim/common/assert.cpp calls (src/crash_dump_win.c). The pipeline binary tests also read the
+# runtime's headers (compat_win.h, sigjmp_buf); the others get sigjmp_buf from spartanport_toggles.h.
+if (WIN32)
+    foreach(test pipeline-binary-cache-test pipeline-binary-initialization-test motion-shader-test
+            scene-resolution-test taa-shader-test camera-motion-test)
+        target_sources(${test} PRIVATE ../src/compat_win.c ../src/crash_dump_win.c)
+        target_link_libraries(${test} PRIVATE onecore)
+    endforeach()
+    foreach(test pipeline-binary-cache-test pipeline-binary-initialization-test)
+        target_compile_definitions(${test} PRIVATE sigjmp_buf=spartanport_jmp_buf)
+        target_compile_options(${test} PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
+    endforeach()
+endif()
+# They share Vulkan-Hpp's dispatcher with the library, whose layout depends on NDEBUG: build them with
+# the library's NDEBUG (each test re-enables assert after its Vulkan headers). A mismatch is an ODR
+# violation the static Windows link resolves to the wrong copy (a crash in DispatchLoaderDynamic::init).
+foreach(test pipeline-binary-cache-test pipeline-binary-initialization-test motion-shader-test
+        scene-resolution-test taa-shader-test camera-motion-test)
+    target_compile_definitions(${test} PRIVATE NDEBUG)
+endforeach()
 
 # spartanport: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.
 add_executable(upscaler-support-test EXCLUDE_FROM_ALL ../tests/test_upscaler_support.cpp
@@ -450,3 +506,43 @@ add_executable(swapchain-focus-test EXCLUDE_FROM_ALL ../tests/test_swapchain_foc
 target_include_directories(swapchain-focus-test PRIVATE shim shadps4)
 target_link_libraries(swapchain-focus-test PRIVATE PkgConfig::SDL3 Vulkan::Vulkan fmt::fmt)
 target_compile_options(swapchain-focus-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+
+# Basara 4 PC: one list of tests. Every target whose name ends in "-test" is registered with CTest and
+# with the "spartanport-tests" target (build.sh --test on Windows: ninja spartanport-tests, then
+# ctest), so a new *-test target runs without being added anywhere else. Keep this block last.
+# Arguments a test needs come from SPARTAN_TEST_ARGS_<target>; tests run in the build directory.
+enable_testing()
+add_library(spartanport-test-no-dialog OBJECT ../tests/support/no_dialog.c)
+set(SPARTAN_TEST_ARGS_mp3-test ${CMAKE_CURRENT_SOURCE_DIR}/../tests/data/sine.mp3)
+set(SPARTAN_TEST_ARGS_videodec-test ${CMAKE_CURRENT_SOURCE_DIR}/../tests/data/tiny.h264)
+set(SPARTAN_TEST_ARGS_isa-stub-test ${CMAKE_CURRENT_SOURCE_DIR}/../tests/data/isa_fixture.bin)
+set(SPARTAN_MOTION_SPV ${CMAKE_CURRENT_BINARY_DIR}/motion-shaders)
+set(SPARTAN_TEST_ARGS_motion-shader-test ${SPARTAN_MOTION_SPV})
+add_custom_target(spartanport-tests)
+get_property(spartan_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(target IN LISTS spartan_targets)
+    if (target MATCHES "-test$")
+        target_link_libraries(${target} PRIVATE spartanport-test-no-dialog)
+        add_dependencies(spartanport-tests ${target})
+        add_test(NAME ${target} COMMAND ${target} ${SPARTAN_TEST_ARGS_${target}})
+    endif()
+endforeach()
+# motion-shader-test only writes the SPIR-V the backend emits for the motion-vector stages; spirv-val
+# (SPIRV-Tools) checks it, one test per file. The writer is the fixture's setup: when it fails, the
+# checks do not run and count as failed. Without spirv-val the checks fail with how to install it.
+set_tests_properties(motion-shader-test PROPERTIES FIXTURES_SETUP motion-shaders)
+find_program(SPARTAN_SPIRV_VAL spirv-val)
+if (NOT SPARTAN_SPIRV_VAL)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/spirv-val-missing.cmake
+        "message(FATAL_ERROR \"spirv-val not found: install SPIRV-Tools (MSYS2: pacman -S mingw-w64-clang-x86_64-spirv-tools), then reconfigure\")\n")
+endif()
+foreach(shader vertex-plain vertex-motion fragment-plain fragment-motion)
+    if (SPARTAN_SPIRV_VAL)
+        add_test(NAME motion-shader-spirv-val-${shader}
+                 COMMAND ${SPARTAN_SPIRV_VAL} --target-env vulkan1.3 ${SPARTAN_MOTION_SPV}/${shader}.spv)
+    else()
+        add_test(NAME motion-shader-spirv-val-${shader}
+                 COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/spirv-val-missing.cmake)
+    endif()
+    set_tests_properties(motion-shader-spirv-val-${shader} PROPERTIES FIXTURES_REQUIRED motion-shaders)
+endforeach()

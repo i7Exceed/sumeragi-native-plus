@@ -396,7 +396,7 @@ typedef struct Ngs2Voice {
     int at9_count, at9_pos, at9_frames, at9_primed;
     uint32_t at9_byte, at9_skip, at9_emitted; /* byte cursor in the current block; emitted: samples of this block played */
     uint32_t at9_sf_have, at9_sf_pos;         /* the superframe being gathered / decoded */
-    int at9_sf_ready, at9_starved, at9_errors, at9_decoded, at9_retries;
+    int at9_sf_ready, at9_starved, at9_errors, at9_decoded, at9_retries, at9_probed;
     unsigned char *at9_sf;                    /* staging for one superframe: a superframe may span two blocks */
     float at9_prev[NGS2_MAX_CHANNELS], at9_cur[NGS2_MAX_CHANNELS];
     double at9_phase;
@@ -789,7 +789,7 @@ static void ngs2_at9_restart(Ngs2Voice *v) {
     v->at9_config=0;
     v->at9_count=v->at9_pos=v->at9_frames=v->at9_primed=0; v->at9_emitted=0;
     v->at9_byte=0; v->at9_sf_have=v->at9_sf_pos=0; v->at9_sf_ready=v->at9_starved=v->at9_errors=0; v->at9_phase=0;
-    v->at9_decoded=v->at9_retries=0;
+    v->at9_decoded=v->at9_retries=v->at9_probed=0;
     v->at9_skip=v->block_count ? v->blocks[0].skip : 0;
     ngs2_stream_begin(v);
 }
@@ -884,6 +884,67 @@ static int ngs2_at9_decode(Ngs2Voice *v) {
         int used=0;
         int decode_rc=Atrac9Decode(v->at9,v->at9_sf+v->at9_sf_pos,v->at9_pcm,&used);
         if ((decode_rc || used<=0) && v->streaming) {
+            /* If the stream has not decoded any superframe yet, the initial chunk may have started
+               with unaligned lead-in bytes or offset (e.g. cutscene audio with 64-byte lead-in).
+               Scan forward within the first block for a true superframe boundary.
+               To prevent false positives, all frames in candidate superframe (and 2nd superframe if
+               available) must decode successfully with total byte count matching superframeSize. */
+            if (!v->at9_decoded && !v->at9_sf_pos && !v->at9_probed &&
+                v->block < v->block_count && v->block_data[v->block]) {
+                v->at9_probed = 1;
+                const Ngs2Block *blk = &v->blocks[v->block];
+                const unsigned char *data = v->block_data[v->block];
+                uint32_t search_limit = superframe > 512 ? superframe : 512;
+                uint32_t max_search = (search_limit < blk->size) ? search_limit : blk->size;
+                void *probe = Atrac9GetHandle();
+                int found = 0;
+                uint32_t found_off = 0;
+                if (probe && Atrac9InitDecoder(probe, (unsigned char *)&v->at9_config) == 0) {
+                    for (uint32_t off = 1; off + superframe <= blk->size && off <= max_search; ++off) {
+                        /* In ATRAC9, the first byte of a superframe must have bits 7 and 6 clear (FirstInSuperframe=1, ReuseBandParams=0) */
+                        if ((data[blk->offset + off] & 0xC0) != 0) continue;
+                        Atrac9InitDecoder(probe, (unsigned char *)&v->at9_config);
+                        uint32_t sf_pos = 0;
+                        int ok = 1;
+                        for (int f = 0; f < v->at9_info.framesInSuperframe; ++f) {
+                            int test_used = 0;
+                            int rc = Atrac9Decode(probe, data + blk->offset + off + sf_pos, v->at9_pcm, &test_used);
+                            if (rc != 0 || test_used <= 0) { ok = 0; break; }
+                            sf_pos += (uint32_t)test_used;
+                        }
+                        if (!ok || sf_pos != superframe) continue;
+
+                        /* Validate 2nd superframe if available in block */
+                        if (off + superframe * 2 <= blk->size) {
+                            uint32_t sf2_pos = 0;
+                            for (int f = 0; f < v->at9_info.framesInSuperframe; ++f) {
+                                int test_used = 0;
+                                int rc = Atrac9Decode(probe, data + blk->offset + off + superframe + sf2_pos, v->at9_pcm, &test_used);
+                                if (rc != 0 || test_used <= 0) { ok = 0; break; }
+                                sf2_pos += (uint32_t)test_used;
+                            }
+                            if (!ok || sf2_pos != superframe) continue;
+                        }
+
+                        found = 1;
+                        found_off = off;
+                        break;
+                    }
+                }
+                if (probe) Atrac9ReleaseHandle(probe);
+                if (found) {
+                    runtime_audio_log("ngs2.at9_resync_found rack=%#x/%u voice=%u skipped=%u new_off=%u",
+                                      v->rack->id, v->rack->serial, v->index, found_off, found_off);
+                    v->consumed_bytes = (v->consumed_bytes >= superframe) ? (v->consumed_bytes - superframe + found_off) : found_off;
+                    v->at9_byte = found_off;
+                    v->at9_sf_have = 0;
+                    v->at9_sf_ready = 0;
+                    v->at9_retries = 0;
+                    v->at9_errors = 0;
+                    Atrac9InitDecoder(v->at9, (unsigned char *)&v->at9_config);
+                    continue;
+                }
+            }
             /* Streaming ring buffer refill: waiting for game to supply more data or advance buffer. */
             static int reported;
             if (++v->at9_retries==1 && reported++<40) {
@@ -895,19 +956,25 @@ static int ngs2_at9_decode(Ngs2Voice *v) {
             if (v->at9_retries>60 && v->block_count) {
                 /* A third of a second without a decodable superframe. Only the first chunk of a waveform block is known to start
                    on a superframe boundary: leave the chunks in front of the next block start (they count as consumed, the game
-                   refills its ring from that), reset the decoder and begin again there. */
+                   refills its ring from that), reset the decoder and begin again there.
+                   If no block start is in the queue, do NOT discard continuation chunks (flags & 2 != 0) of a looping stream;
+                   doing so flushes the game's valid refill chunks and permanently kills the stream. */
                 static int resynced;
                 uint32_t dropped=0;
-                while (v->block_count && !v->block_starts[0]) { v->consumed_bytes+=v->blocks[0].size; ngs2_pop_block(v); ++dropped; }
+                int has_start=0;
+                for (uint32_t i=0; i<v->block_count; ++i) if (v->block_starts[i]) { has_start=1; break; }
+                if (has_start) {
+                    while (v->block_count && !v->block_starts[0]) { v->consumed_bytes+=v->blocks[0].size; ngs2_pop_block(v); ++dropped; }
+                }
                 if (resynced++<40) runtime_audio_log("ngs2.resync rack=%#x/%u voice=%u dropped_chunks=%u queued=%u",v->rack->id,v->rack->serial,v->index,dropped,v->block_count);
+                v->at9_sf_have=0; v->at9_sf_pos=0; v->at9_sf_ready=0; v->at9_byte=0;
                 ngs2_at9_restart(v);
                 if (!v->block_count) { v->stream_wait=1; v->stream_track=1; }
                 v->at9_starved=1;
                 return 0;
             }
-            if (!v->at9_decoded && v->at9) { Atrac9ReleaseHandle(v->at9); v->at9=NULL; }
-            v->at9_byte=0; v->at9_sf_have=0; v->at9_sf_ready=0; v->at9_frames=0;
-            if (!v->at9_decoded) v->consumed_bytes-=superframe;
+            if (v->at9 && v->at9_config) Atrac9InitDecoder(v->at9, (unsigned char *)&v->at9_config);
+            v->at9_sf_have=0; v->at9_sf_ready=0; v->at9_frames=0;
             v->at9_starved=1;
             return 0;
         }
@@ -919,7 +986,7 @@ static int ngs2_at9_decode(Ngs2Voice *v) {
             if (++v->at9_errors>=16) return 0;
             continue;
         }
-        v->at9_errors=0; ++v->at9_decoded;
+        v->at9_errors=0; ++v->at9_decoded; v->at9_retries=0;
         v->at9_sf_pos+=(uint32_t)used;
         if (++v->at9_frames>=v->at9_info.framesInSuperframe || v->at9_sf_pos>=superframe) { v->at9_sf_ready=0; v->at9_sf_have=0; }
         v->at9_count=v->at9_info.frameSamples; v->at9_pos=0;
@@ -936,6 +1003,11 @@ static int ngs2_at9_open(Ngs2Voice *v);
 /* The next waveform block of a stream, once the game has submitted its first chunk. */
 static int ngs2_stream_resume(Ngs2Voice *v) {
     if (!v->stream_wait) return 1;
+    while (v->block_count && !v->block_starts[0]) {
+        /* Discard leftover continuation chunks from previous stream pass */
+        v->consumed_bytes += v->blocks[0].size;
+        ngs2_pop_block(v);
+    }
     if (!v->block_count) { v->at9_starved=1; return 0; }
     v->stream_left=v->blocks[0].samples; v->at9_skip=v->blocks[0].skip; v->stream_wait=0;
     if (!v->stream_left) v->stream_track=0;
@@ -955,7 +1027,7 @@ static void ngs2_stream_advance(Ngs2Voice *v) {
     if (v->at9) { Atrac9ReleaseHandle(v->at9); v->at9=NULL; }
     v->at9_config=0;
     v->at9_byte=0; v->at9_sf_have=v->at9_sf_pos=0; v->at9_sf_ready=0; v->at9_frames=0; v->at9_count=v->at9_pos=0;
-    v->at9_decoded=v->at9_retries=v->at9_errors=0; v->at9_skip=0;
+    v->at9_decoded=v->at9_retries=v->at9_errors=0; v->at9_skip=0; v->at9_probed=0; v->at9_primed=0;
     v->stream_wait=1;
     ngs2_stream_resume(v);
     if (reported++<60)
@@ -1047,7 +1119,10 @@ static void ngs2_event(Ngs2Voice *v, uint32_t event) {
         if (v->rack->id==NGS2_RACK_SAMPLER && !ngs2_event1_pauses()) { v->playing=0; v->paused=0; }
         else v->paused=1;
         break;
-    case NGS2_EVENT_RESUME_A: case NGS2_EVENT_RESUME_B: v->paused=0; v->playing=1; break;
+    case NGS2_EVENT_RESUME_A: case NGS2_EVENT_RESUME_B:
+        v->paused=0; v->playing=1;
+        if (v->streaming && v->stream_wait && v->block_count) ngs2_stream_resume(v);
+        break;
     default: break;
     }
     if ((event==NGS2_EVENT_STOP || event==NGS2_EVENT_KILL) && v->wav.f) ngs2_wav_close(&v->wav);
@@ -1155,6 +1230,7 @@ static void ngs2_param(Ngs2Voice *v, uint32_t id, const unsigned char *p, uint16
                 v->blocks[v->block_count]=blocks[k]; v->block_data[v->block_count]=data;
                 v->block_starts[v->block_count]=(flags&2)==0; ++v->block_count;
             }
+            if (take && append) v->at9_retries=0;
             if (take && v->streaming) v->stream_final=(flags&1)==0;
             if (!append) ngs2_stream_begin(v);
             else if (was_empty && take && v->wave_type==0x40 && v->block_starts[0] && (!v->stream_wait || was_final)) {
@@ -1167,6 +1243,9 @@ static void ngs2_param(Ngs2Voice *v, uint32_t id, const unsigned char *p, uint16
                 static int reported;
                 if (reported++<40) runtime_audio_log("ngs2.stream_begin_late rack=%#x/%u voice=%u samples=%u skip=%u was_final=%d wait=%d",v->rack->id,v->rack->serial,v->index,
                                                      v->blocks[0].samples,v->blocks[0].skip,was_final,v->stream_wait);
+            }
+            if (v->streaming && v->stream_wait && v->block_count > 0) {
+                ngs2_stream_resume(v);
             }
             if (v->streaming || ngs2_is_major(v)) { /* how a streaming game feeds its ring */
                 static int reported;
@@ -1700,14 +1779,20 @@ static ABI int32_t ngs2_calc_block(const void *format, uint32_t position, uint32
             else {
                 uint64_t begin=(uint64_t)position+f[5];                  /* in the decoder's own timeline */
                 uint64_t first=begin/per_superframe;
-                uint64_t last=(begin+samples+per_superframe-1)/per_superframe;
+                /* Capcom MT Framework passes `samples` as the loop end point in the file timeline (e.g. 4171836),
+                 * not the remaining duration. When position > 0, calculating (begin + samples) double-counted the
+                 * seek position, producing out.size far larger than data_size and causing the feeder to overread into
+                 * adjacent subfiles (ASCII "ver."). */
+                uint64_t end_sample=(uint64_t)samples+f[5];
+                if (end_sample<begin) end_sample=begin;
+                uint64_t last=(end_sample+per_superframe-1)/per_superframe;
                 if (last<=first) last=first+1;
                 /* Capcom MT Framework adds data chunk base offset to out.offset when seeking file.
                  * out.offset must be purely superframe-aligned stream byte offset, without f[4] added again. */
                 out.offset=(uint32_t)(first*(uint64_t)ci.superframeSize);
-                out.size=out.offset+(uint32_t)((last-first)*(uint64_t)ci.superframeSize); /* Sony Ngs2: end offset so (end - start) == size */
+                out.size=(uint32_t)(last*(uint64_t)ci.superframeSize); /* Sony Ngs2: end offset so (end - start) == size */
                 out.skip=(uint32_t)(begin-first*per_superframe);
-                out.samples=samples;
+                out.samples=(uint32_t)(end_sample-begin);
             }
         }
         if (probe) Atrac9ReleaseHandle(probe);

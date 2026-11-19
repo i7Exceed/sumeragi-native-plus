@@ -17,6 +17,7 @@
 #include "video_core/renderer_vulkan/vk_lighting_test.h"
 #include "video_core/renderer_vulkan/vk_pipeline_serialization.h"
 #include "common/elf_info.h"
+#include "video_core/renderer_vulkan/vk_render_trace.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 
@@ -436,8 +437,28 @@ GraphicsPipeline::GraphicsPipeline(
     auto [pipeline_result, pipe] =
         CreateCachedGraphicsPipeline(device, pipeline_cache, pipeline_info, key,
                                      instance.GetPipelineBinaryGlobalKey(), binary_directory);
-    ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
-               vk::to_string(pipeline_result));
+    for (int retry = 0; pipeline_result != vk::Result::eSuccess && retry < 10; ++retry) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        auto retry_res =
+            device.createGraphicsPipelineUnique(retry < 5 ? pipeline_cache : vk::PipelineCache{},
+                                                pipeline_info);
+        pipeline_result = retry_res.result;
+        pipe = std::move(retry_res.value);
+    }
+    if (pipeline_result != vk::Result::eSuccess) {
+        LOG_ERROR(Render_Vulkan, "Failed to create graphics pipeline {}: {} (skipping draw)",
+                  debug_str, vk::to_string(pipeline_result));
+        RenderTrace::Count(RenderTrace::Counter::GraphicsPipelineFails);
+        RenderTrace::RecordAnomaly(
+            RenderTrace::Anomaly::GraphicsPipelineCreateFail,
+            [&] {
+                return fmt::format("{} res={} mrt={:#x} samples={} z={} st={}", debug_str,
+                                   vk::to_string(pipeline_result), key.mrt_mask, key.num_samples,
+                                   u32(key.z_format), u32(key.stencil_format));
+            },
+            true);
+        return;
+    }
     pipeline = std::move(pipe);
     SetObjectName(device, *pipeline, "Graphics Pipeline {}", debug_str);
     RecordWaveSizes();
@@ -451,10 +472,24 @@ GraphicsPipeline::GraphicsPipeline(
         auto [square_result, square] =
             CreateCachedGraphicsPipeline(device, pipeline_cache, square_info, key,
                                          instance.GetPipelineBinaryGlobalKey(), binary_directory);
-        ASSERT_MSG(square_result == vk::Result::eSuccess,
-                   "Failed to create the squaring pipeline: {}", vk::to_string(square_result));
-        square_pipeline = std::move(square);
-        SetObjectName(device, *square_pipeline, "Graphics Pipeline {} squaring pass", debug_str);
+        for (int retry = 0; square_result != vk::Result::eSuccess && retry < 10; ++retry) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            auto retry_res =
+                device.createGraphicsPipelineUnique(retry < 5 ? pipeline_cache : vk::PipelineCache{},
+                                                    square_info);
+            square_result = retry_res.result;
+            square = std::move(retry_res.value);
+        }
+        if (square_result == vk::Result::eSuccess) {
+            square_pipeline = std::move(square);
+            SetObjectName(device, *square_pipeline, "Graphics Pipeline {} squaring pass", debug_str);
+        } else {
+            LOG_ERROR(Render_Vulkan, "Failed to create the squaring pipeline {}: {}", debug_str,
+                      vk::to_string(square_result));
+            RenderTrace::RecordAnomaly(RenderTrace::Anomaly::SquarePipelineFail, [&] {
+                return fmt::format("{} res={}", debug_str, vk::to_string(square_result));
+            });
+        }
     }
     g_spartanport_pipeline_total_ns += NsSince(started);
     ++g_spartanport_pipelines_built;

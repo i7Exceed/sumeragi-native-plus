@@ -1137,10 +1137,14 @@ class TrophiesWindow(tk.Toplevel):
 
             # Left: Trophy Icon (56x56)
             icon_img = self._get_photo_image(tid, is_unlocked)
+            icon_lbl = None
             if icon_img:
-                icon_lbl = tk.Label(card, image=icon_img, bg=card_bg)
-                icon_lbl.grid(row=0, column=0, rowspan=2, padx=(0, 12), sticky="w")
-            else:
+                try:
+                    icon_lbl = tk.Label(card, image=icon_img, bg=card_bg)
+                    icon_lbl.grid(row=0, column=0, rowspan=2, padx=(0, 12), sticky="w")
+                except Exception:
+                    icon_lbl = None
+            if icon_lbl is None:
                 placeholder = tk.Label(
                     card,
                     text="🏆" if is_unlocked else "🔒",
@@ -1248,7 +1252,7 @@ class TrophiesWindow(tk.Toplevel):
                     im = ImageEnhance.Brightness(im).enhance(0.35)
                 else:
                     im = im.convert("L").convert("RGBA")
-            photo = ImageTk.PhotoImage(im)
+            photo = ImageTk.PhotoImage(im, master=self)
             self.photo_cache[cache_key] = photo
             return photo
         except Exception:

@@ -56,6 +56,24 @@ int main() {
     assert(G::ResolutionSize("8K") == std::make_pair(7680, 4320));
     assert(G::ParseResolution("invalid") == 0);
     for (const auto name : G::Resolutions) assert(G::ResolutionSize(name).first > 0);
+    // Built-in render sizes are whole 20x20 motion blur tiles: 480p renders at 860x480 (854 left a
+    // partial tile past the right edge that blurred a band from column 820); the others are unchanged.
+    assert(G::ResolutionSize("480p") == std::make_pair(860, 480));
+    assert(G::ResolutionSize("360p") == std::make_pair(640, 360));
+    assert(G::ResolutionSize("540p") == std::make_pair(960, 540));
+    assert(G::ResolutionSize("1800p") == std::make_pair(3200, 1800));
+    for (const auto& [name, size] : G::ResolutionSizes) {
+        assert(size.first % G::RenderTile == 0 && size.second % G::RenderTile == 0);
+    }
+    // RenderSize rounds each side up to whole tiles and keeps whole-tile sizes as they are.
+    for (int side = 1; side <= 8192; side += 7) {
+        const auto [w, h] = G::RenderSize(side, side + 3);
+        assert(w % G::RenderTile == 0 && w >= side && w < side + G::RenderTile);
+        assert(h % G::RenderTile == 0 && h >= side + 3 && h < side + 3 + G::RenderTile);
+    }
+    assert(G::RenderSize(1920, 1080) == std::make_pair(1920, 1080));
+    // A mod's size is what the mod's own patch renders at: not rounded here.
+    assert(G::ResolutionSize("1360x768") == std::make_pair(1360, 768));
     assert(G::ParseEngineFps(240) == 240 && G::ParseEngineFps(144) == 144 && G::ParseEngineFps(180) == 180 && G::ParseEngineFps(100) == 100 && G::ParseEngineFps(90) == 120);
     // R3 + L1 + R1 / F9: the next rate this launch supports, back to 60 after the last.
     assert(G::NextEngineFps(60, 240) == 100 && G::NextEngineFps(100, 240) == 120);
@@ -89,11 +107,15 @@ int main() {
     SpartanSettings::Load();
     assert(v.display_mode == G::Borderless && !v.vsync && v.fps_limit == 240 && !v.async_shaders);
     assert(v.render_resolution == 4 && v.engine_fps == 240 && !v.deferred_readback && v.stale_readback);
-    // FSR 1 left the menus in 2.2.0: a saved fsr1=1 (or SPARTAN_FSR1) no longer turns it on.
-    assert(!v.fsr1 && !v.rcas && v.rcas_strength == 40 && v.frames_queued == 2);
-    SetEnvironment("SPARTAN_FSR1", "1");
+    // Basara 4 PC (6d90bb1): FSR 1 is a launcher and in-game menu option again, so a saved fsr1=1
+    // turns it on, and SPARTAN_FSR1 (set by the launcher) wins over the file either way.
+    assert(v.fsr1 && !v.rcas && v.rcas_strength == 40 && v.frames_queued == 2);
+    SetEnvironment("SPARTAN_FSR1", "0");
     SpartanSettings::Load();
     assert(!v.fsr1);
+    SetEnvironment("SPARTAN_FSR1", "1");
+    SpartanSettings::Load();
+    assert(v.fsr1);
     SetEnvironment("SPARTAN_FSR1", "");
     assert(!SpartanSettings::GraphicsNeedRestart());
     assert(v.applied_engine_fps == 240);  // no SPARTAN_ENGINE_FPS: the configured rate
@@ -113,7 +135,7 @@ int main() {
     const std::string saved = Read(path);
     for (const char* line : {"display_mode=borderless\n", "vsync=0\n", "fps_limit=60\n", "async_shaders=0\n",
                              "render_resolution=1440p\n", "engine_fps=240\n", "deferred_readback=0\n",
-                             "stale_readback=1\n", "fsr1=0\n", "rcas=0\n", "rcas_strength=40\n",
+                             "stale_readback=1\n", "fsr1=1\n", "rcas=0\n", "rcas_strength=40\n",
                              "frames_queued=2\n"}) {
         assert(saved.find(line) != std::string::npos);
     }
@@ -126,19 +148,30 @@ int main() {
     assert(v.render_resolution == G::ParseResolution("8K"));
     SpartanSettings::Save();
     assert(Read(path).find("render_resolution=8K\n") != std::string::npos);
+    {
+        // SPARTAN_FSR1=1 from the launcher turns FSR 1 on over a saved fsr1=0; without it the file counts.
+        std::ofstream out(path);
+        out << "fsr1=0\n";
+    }
+    SetEnvironment("SPARTAN_FSR1", "1");
+    SpartanSettings::Load();
+    assert(v.fsr1);
+    SetEnvironment("SPARTAN_FSR1", "");
+    SpartanSettings::Load();
+    assert(!v.fsr1);
 
     {
         // The resolutions of the enabled mods' patch files (run.py: SPARTAN_EXTRA_RESOLUTIONS) follow the built-in
         // ones and keep their names through a load and a save; repeated or built-in names are not added twice.
         SetEnvironment("SPARTAN_EXTRA_RESOLUTIONS", "3840x1080;2880x1200;;2880x1200;4K;3440x1440");
         const auto names = G::ResolutionNames();
-        assert(names.size() == 25 && names[22] == "8K" && names[23] == "3840x1080" && names[24] == "2880x1200");
+        assert(names.size() == 27 && names[22] == "8K" && names[25] == "3840x1080" && names[26] == "2880x1200");
         {
             std::ofstream out(path);
             out << "render_resolution=2880x1200\n";
         }
         SpartanSettings::Load();
-        assert(v.render_resolution == 24);
+        assert(v.render_resolution == 26);
         SpartanSettings::Save();
         assert(Read(path).find("render_resolution=2880x1200\n") != std::string::npos);
         SetEnvironment("SPARTAN_EXTRA_RESOLUTIONS", "");  // the mod is off: its resolution is unknown, so native

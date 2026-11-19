@@ -10,7 +10,9 @@
 #include "spartanport_settings.h"
 #include "imgui/renderer/imgui_core.h"
 #include "sdl_window.h"
+#include "video_core/renderer_vulkan/vk_gpu_checkpoint.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
+#include "video_core/renderer_vulkan/vk_render_trace.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
 
 namespace Vulkan {
@@ -85,6 +87,8 @@ void Swapchain::Create(u32 width_, u32 height_) {
         swapchain_result == vk::Result::eErrorInitializationFailed) {
         LOG_WARNING(Render_Vulkan, "Failed to create swapchain ({}), postponing until window is ready",
                     vk::to_string(swapchain_result));
+        RenderTrace::RecordAnomaly(RenderTrace::Anomaly::SwapchainCreateFail,
+                                   [&] { return vk::to_string(swapchain_result); });
         if (swapchain_result == vk::Result::eErrorSurfaceLostKHR) {
             RecreateSurface();
         }
@@ -98,11 +102,20 @@ void Swapchain::Create(u32 width_, u32 height_) {
 
     SetupImages();
     RefreshSemaphores();
+    RenderTrace::Log("swapchain.created", [&] {
+        return fmt::format("{}x{} count={} fmt={} mode={}", extent.width, extent.height,
+                           image_count, vk::to_string(format.format), vk::to_string(present_mode));
+    });
 }
 
 void Swapchain::Recreate(u32 width_, u32 height_) {
     LOG_DEBUG(Render_Vulkan, "Recreate the swapchain: width={} height={} HDR={}", width_, height_,
               needs_hdr);
+    RenderTrace::Count(RenderTrace::Counter::SwapchainRecreates);
+    RenderTrace::RecordAnomaly(RenderTrace::Anomaly::SwapchainRecreate, [&] {
+        return fmt::format("{}x{} hdr={} fmt={}", width_, height_, int(needs_hdr),
+                           vk::to_string(surface_format.format));
+    });
     Create(width_, height_);
 }
 
@@ -134,19 +147,40 @@ bool Swapchain::AcquireNextImage() {
     }
 
     vk::Device device = instance.GetDevice();
+    // Use a 100ms timeout so Exclusive Fullscreen Alt-Tab never hangs PresentThread forever.
+    constexpr u64 acquire_timeout_ns = 100'000'000ULL;
     vk::Result result =
-        device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
+        device.acquireNextImageKHR(swapchain, acquire_timeout_ns,
                                    image_acquired[frame_index], VK_NULL_HANDLE, &image_index);
 
     switch (result) {
     case vk::Result::eSuccess:
-        break;
+        return true;
     case vk::Result::eSuboptimalKHR:
+        // eSuboptimalKHR still acquires image_index and signals image_acquired[frame_index];
+        // consume the semaphore via Present() and recreate afterwards instead of destroying it now.
+        needs_recreation = true;
+        return true;
+    case vk::Result::eTimeout:
+    case vk::Result::eNotReady:
+        RenderTrace::NoteAcquireFailure(RenderTrace::AcquireFailure::Timeout,
+                                        vk::to_string(result));
+        return false;
     case vk::Result::eErrorSurfaceLostKHR:
     case vk::Result::eErrorOutOfDateKHR:
+#ifdef VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT
+    case static_cast<vk::Result>(VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT):
+#endif
     case vk::Result::eErrorUnknown:
+        RenderTrace::NoteAcquireFailure(RenderTrace::AcquireFailure::Error, vk::to_string(result));
+        RenderTrace::Log("swapchain.acquire", [&] { return vk::to_string(result); });
         needs_recreation = true;
-        break;
+        return false;
+    case vk::Result::eErrorDeviceLost:
+        RenderTrace::NoteAcquireFailure(RenderTrace::AcquireFailure::Error, vk::to_string(result));
+        GpuCheckpoint::ReportLost(instance.GetGraphicsQueue(), "Swapchain::AcquireNextImage");
+        ASSERT_MSG(false, "Device lost during Swapchain::AcquireNextImage");
+        return false;
     default:
         LOG_CRITICAL(Render_Vulkan, "Swapchain acquire returned unknown result {}",
                      vk::to_string(result));
@@ -173,9 +207,17 @@ bool Swapchain::Present() {
 
     auto result = instance.GetPresentQueue().presentKHR(present_info);
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR ||
-        result == vk::Result::eErrorSurfaceLostKHR) {
+        result == vk::Result::eErrorSurfaceLostKHR
+#ifdef VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT
+        || result == static_cast<vk::Result>(VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT)
+#endif
+    ) {
+        RenderTrace::Log("swapchain.present", [&] { return vk::to_string(result); });
         needs_recreation = true;
     } else {
+        if (result == vk::Result::eErrorDeviceLost) {
+            GpuCheckpoint::ReportLost(instance.GetGraphicsQueue(), "Swapchain::Present");
+        }
         ASSERT_MSG(result == vk::Result::eSuccess, "Swapchain presentation failed: {}",
                    vk::to_string(result));
     }
@@ -235,8 +277,20 @@ void Swapchain::FindPresentMode() {
         LOG_ERROR(Render, "Failed to query available present modes, falling back to Fifo as "
                           "guaranteed supported option.");
         present_mode = vk::PresentModeKHR::eFifo;
+        std::printf("Swapchain: present modes unknown (query failed: %s), using Fifo\n",
+                    vk::to_string(modes_result).c_str());
+        RenderTrace::SetPresentMode(vk::to_string(present_mode));
         return;
     }
+    // Which modes this GPU/driver offers for the window: tells a report whether "VSync off" could
+    // get Mailbox or Immediate at all.
+    std::string supported;
+    for (const vk::PresentModeKHR mode : modes) {
+        supported += supported.empty() ? "" : ", ";
+        supported += vk::to_string(mode);
+    }
+    std::printf("Swapchain: present modes supported: %s\n",
+                supported.empty() ? "none" : supported.c_str());
 
     // spartanport: VSync on is Fifo (no tearing, waits for the display); off is Mailbox when the
     // driver has it, else Immediate (tearing allowed), else Fifo.
@@ -247,6 +301,7 @@ void Swapchain::FindPresentMode() {
                    : has(vk::PresentModeKHR::eImmediate) ? vk::PresentModeKHR::eImmediate
                                                          : vk::PresentModeKHR::eFifo;
     std::printf("Swapchain: VSync %s (%s)\n", vsync ? "on" : "off", vk::to_string(present_mode).c_str());
+    RenderTrace::SetPresentMode(vk::to_string(present_mode));
 }
 
 void Swapchain::UpdateVsync() {

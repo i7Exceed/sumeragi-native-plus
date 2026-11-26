@@ -33,6 +33,7 @@ Folder contents
   game\                  Your provided game dump (eboot.bin, sce_sys, sce_module, etc.)
   update\                Optional separate game update directory
   dlc\                   Optional extracted add-on DLC directory
+  mods\                  Optional mod folders (e.g. mods\indonesia\nativePS4\...)
   out\                   Prepared game image (generated automatically)
   user\                  Saves, shader cache, sumeragi.ini, last_run.log, prepare.log
   scripts\               Image preparation and linking pipeline scripts
@@ -45,6 +46,7 @@ Launcher options
   Frame limit       60 (default), 90, 120, 144, 165, 240, Unlimited
   VSync, sharpening (RCAS), anisotropic filtering 2x-16x
   Separate Update   Select custom update path with automated overlay merge
+  Mod Manager       Enable, disable, and prioritize mod folders via virtual overlay
   Add-on DLCs       Discover and mount add-on content manifests automatically
   Trophies          View 43 trophies, progress bar, category tags, filters, and reset action
   Controls          Remap logical game actions (Cross, Circle, Square, Triangle, L1, R1, L3, R3, Options, D-pad)

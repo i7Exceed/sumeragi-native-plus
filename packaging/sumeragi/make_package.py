@@ -152,11 +152,14 @@ def main():
             shutil.copy2(HERE / doc, target / doc)
 
     if not args.update:
-        for folder in ("game", "user", "out"):
+        for folder in ("game", "mods", "user", "out"):
             (target / folder).mkdir(exist_ok=True)
         (target / "game/PUT_YOUR_GAME_DUMP_HERE.txt").write_text(
             "Put the folder that contains eboot.bin here (or choose it with Browse in the launcher).\n"
             "No game files are included with this program.\n", encoding="utf-8")
+        (target / "mods/PUT_YOUR_MODS_HERE.txt").write_text(
+            "Place mod subfolders here (for example: mods\\indonesia\\nativePS4\\...),\n"
+            "then enable and order them via the Mods card in the launcher.\n", encoding="utf-8")
     print("done:", target)
 
 

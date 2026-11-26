@@ -58,6 +58,7 @@ from sumeragi_config import (
     TROPHY_FILTERS,
     UPSCALERS,
     USER,
+    resolve_enabled_mods,
     save_config,
 )
 from sumeragi_gpu import SYSTEM_GPUS
@@ -170,13 +171,17 @@ class PagesMixin:
         self.card_controls = self._create_status_card(grid_frame, "🎮", "home.card_controls_title", "controls")
         self.card_controls.grid(row=1, column=1, sticky="nsew", padx=(8, 0), pady=(8, 0))
 
-        # Status Card 5: Trophies (spanning full width)
+        # Status Card 5: Mods
+        self.card_mods = self._create_status_card(grid_frame, "🧩", "home.card_mods_title", "mods", command=self.open_mods_manager)
+        self.card_mods.grid(row=2, column=0, sticky="nsew", padx=(0, 8), pady=(8, 0))
+
+        # Status Card 6: Trophies
         self.card_trophies = self._create_status_card(grid_frame, "🏆", "home.card_trophies_title", "trophies")
-        self.card_trophies.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(12, 0))
+        self.card_trophies.grid(row=2, column=1, sticky="nsew", padx=(8, 0), pady=(8, 0))
 
         page.on_show = self._refresh_home_status  # type: ignore[attr-defined]
 
-    def _create_status_card(self, parent: tk.Frame, icon: str, title_key: str, target_page: str) -> tk.Frame:
+    def _create_status_card(self, parent: tk.Frame, icon: str, title_key: str, target_page: str, command: Any = None) -> tk.Frame:
         card = tk.Frame(parent, bg=theme.BG_CARD, bd=1, relief="solid", padx=16, pady=14)
         card.columnconfigure(1, weight=1)
 
@@ -189,7 +194,7 @@ class PagesMixin:
         val_lbl = tk.Label(card, text=t("common.loading"), bg=theme.BG_CARD, fg=theme.TEXT_SECONDARY, font=theme.FONT_CAPTION, wraplength=280, justify="left")
         val_lbl.grid(row=1, column=1, sticky="w")
 
-        btn = ttk.Button(card, text=t("common.manage"), style="Small.TButton", command=lambda: self.show_page(target_page))
+        btn = ttk.Button(card, text=t("common.manage"), style="Small.TButton", command=command or (lambda: self.show_page(target_page)))
         btn.grid(row=0, column=2, rowspan=2, padx=(10, 0), sticky="e")
 
         card._title_key = title_key  # type: ignore[attr-defined]
@@ -790,7 +795,7 @@ class PagesMixin:
         self.home_hero_subtitle.config(text=t("home.hero_subtitle"))
         self.play.config(text=t("home.launch_game"))
         self.stop.config(text=t("home.stop_game"))
-        for card in (self.card_game, self.card_update, self.card_dlc, self.card_controls, self.card_trophies):
+        for card in (self.card_game, self.card_update, self.card_dlc, self.card_controls, self.card_mods, self.card_trophies):
             card._title_lbl.config(text=t(card._title_key))  # type: ignore[attr-defined]
             card._btn.config(text=t("common.manage"))  # type: ignore[attr-defined]
 
@@ -942,7 +947,25 @@ class PagesMixin:
         else:
             self.card_controls._val_lbl.config(text=t("home.card_controls_default"), fg=theme.TEXT_SECONDARY)  # type: ignore[attr-defined]
 
-        # 5. Trophies Card
+        # 5. Mods Card
+        mods_dir = self.cfg.get("mods_dir") or str(ROOT / "mods")
+        extra_mods = self.cfg.get("extra_mods", [])
+        enabled_mods = resolve_enabled_mods(self.cfg)
+        active_mods_count = len(enabled_mods)
+        if active_mods_count > 0:
+            self.card_mods._val_lbl.config(text=t("home.card_mods_active", count=active_mods_count), fg=theme.COLOR_SUCCESS)  # type: ignore[attr-defined]
+        else:
+            available_mods = 0
+            try:
+                available_mods = len(game_update.discover_mods(mods_dir, extra_mods=extra_mods))
+            except Exception:
+                available_mods = 0
+            if available_mods > 0:
+                self.card_mods._val_lbl.config(text=t("home.card_mods_available", count=available_mods), fg=theme.TEXT_SECONDARY)  # type: ignore[attr-defined]
+            else:
+                self.card_mods._val_lbl.config(text=t("home.card_mods_none"), fg=theme.TEXT_SECONDARY)  # type: ignore[attr-defined]
+
+        # 6. Trophies Card
         trp_path = trophies_module.resolve_trophy_package(game, update_dir)
         if trp_path and trp_path.is_file():
             unlocked = trophies_module.read_unlocked_trophies(self._active_user() / "trophies.dat")

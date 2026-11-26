@@ -16,8 +16,8 @@ class ProfileTests(unittest.TestCase):
             p=Path(tmp);(p/'sce_sys').mkdir();(p/'sce_sys/param.sfo').write_bytes(b'fixture')
             with patch.object(content_profile,'sfo',return_value={'USER_DEFINED_PARAM_1':13,'USER_DEFINED_PARAM_4':0xffffffff}):
                 content_profile.prepare(p,p,'trial')
-            self.assertEqual(struct.unpack('<8s6I',(p/'content.bin').read_bytes()),(
-                b'G3CONT02',1,13,0,0,0xffffffff,0))
+            self.assertEqual(struct.unpack('<8s5I',(p/'content.bin').read_bytes()),(
+                b'G3CONT01',1,13,0,0,0xffffffff))
 
     def test_extracted_addons_are_written_to_profile(self):
         label = 'DLCXBGMXXXXXX000'
@@ -43,9 +43,11 @@ class ProfileTests(unittest.TestCase):
                     patch.object(content_profile, 'read_sfo', side_effect=sfo_values):
                 content_profile.prepare(game, root / 'out', dlc_dir=dlc_root)
             blob = (root / 'out' / 'content.bin').read_bytes()
-            self.assertEqual(struct.unpack_from('<8s6I', blob), (
-                b'G3CONT02', 3, 13, 0, 0, 0, 1))
-            self.assertEqual(blob[32:], label.encode() + b'\0')
+            self.assertEqual(len(blob), 28)
+            self.assertEqual(struct.unpack('<8s5I', blob), (
+                b'G3CONT01', 3, 13, 0, 0, 0))
+            profile = (root / 'out' / 'content-profile.json').read_text(encoding='utf-8')
+            self.assertIn(label, profile)
 
     def test_invalid_sfo_parameter_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

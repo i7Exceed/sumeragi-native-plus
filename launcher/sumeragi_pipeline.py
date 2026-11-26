@@ -113,7 +113,13 @@ def image_ready(game: str | Path) -> bool:
         if current.get("modules") and stamp.get("modules") != current.get("modules"):
             return False
         required_outputs = ("boot-linked.bin", "content.bin", "eboot.elf", "boot.bin")
-        return all((active_out / name).is_file() for name in required_outputs)
+        if not all((active_out / name).is_file() for name in required_outputs):
+            return False
+        # Regenerate automatically if an older buggy content_profile.py wrote G3CONT02
+        with open(active_out / "content.bin", "rb") as f:
+            if f.read(8) == b"G3CONT02":
+                return False
+        return True
     except (OSError, ValueError):
         return False
 

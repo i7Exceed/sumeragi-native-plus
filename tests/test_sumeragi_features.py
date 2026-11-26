@@ -111,6 +111,29 @@ class SumeragiFeaturesTests(unittest.TestCase):
         self.assertIn("square", sc.DEFAULT_PC_KEYMAP)
         self.assertGreaterEqual(len(sc.ACTION_DESCRIPTIONS), 16)
 
+    def test_crash_dialog_and_theme_font_small(self):
+        import tkinter as tk
+        import sumeragi_theme as theme
+        from sumeragi_crash import SumeragiCrashDialog
+
+        self.assertEqual(theme.FONT_SMALL, theme.FONT_CAPTION)
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            self.skipTest(f"Tkinter display not available: {e}")
+        try:
+            with tempfile.NamedTemporaryFile("w", suffix=".log", delete=False, encoding="utf-8") as f:
+                f.write("ERROR: invalid content profile\n")
+                log_path = Path(f.name)
+            try:
+                dlg = SumeragiCrashDialog(root, 1, log_path)
+                dlg.destroy()
+            finally:
+                log_path.unlink(missing_ok=True)
+        finally:
+            root.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()

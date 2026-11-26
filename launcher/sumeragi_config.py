@@ -55,6 +55,9 @@ DEFAULTS: Dict[str, Any] = {
     "game": "",
     "update_dir": "",
     "dlc_dir": "",
+    "mods_dir": str(ROOT / "mods"),
+    "enabled_mods": [],
+    "extra_mods": [],
     "display_mode": "borderless",
     "vsync": True,
     "fps_limit": 60,
@@ -198,12 +201,73 @@ def _get_active_user_path() -> Path:
     return USER
 
 
+def _get_active_root() -> Path:
+    import sys
+    launcher_mod = sys.modules.get("sumeragi_launcher")
+    if launcher_mod and hasattr(launcher_mod, "ROOT"):
+        return Path(getattr(launcher_mod, "ROOT"))
+    return ROOT
+
+
+def resolve_mod_path(entry: str | Path, mods_dir: str | Path | None = None) -> Path:
+    """Resolves a saved mod identifier (absolute path, relative path, or folder name)."""
+    p = Path(entry)
+    if p.is_absolute():
+        return p
+    if mods_dir:
+        cand = Path(mods_dir) / p
+        if cand.exists() or len(p.parts) == 1:
+            return cand
+    return _get_active_root() / p
+
+
+def resolve_enabled_mods(cfg: Dict[str, Any]) -> List[Path]:
+    """Returns resolved Paths of active mods in overlay order."""
+    mods_dir = cfg.get("mods_dir") or str(_get_active_root() / "mods")
+    raw_list = cfg.get("enabled_mods")
+    if not isinstance(raw_list, list):
+        return []
+    resolved: List[Path] = []
+    seen: Set[str] = set()
+    for item in raw_list:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        p = resolve_mod_path(item.strip(), mods_dir)
+        key = os.path.normpath(str(p)).casefold()
+        if key not in seen:
+            seen.add(key)
+            resolved.append(p)
+    return resolved
+
+
+def _sanitize_mod_list(raw: Any) -> List[str]:
+    if not isinstance(raw, list):
+        return []
+    cleaned: List[str] = []
+    seen: Set[str] = set()
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        val = item.strip()
+        if not val:
+            continue
+        key = os.path.normpath(val).casefold()
+        if key not in seen:
+            seen.add(key)
+            cleaned.append(val)
+    return cleaned
+
+
 def load_config() -> Dict[str, Any]:
     import copy
     cfg = copy.deepcopy(DEFAULTS)
     active_config = _get_active_config_path()
+    loaded: Dict[str, Any] = {}
     try:
-        cfg.update(json.loads(active_config.read_text(encoding="utf-8-sig")))
+        raw = json.loads(active_config.read_text(encoding="utf-8-sig"))
+        if isinstance(raw, dict):
+            loaded = raw
+            cfg.update(loaded)
     except (OSError, ValueError):
         pass
     if not cfg["game"] or not (Path(cfg["game"]) / "eboot.bin").is_file():
@@ -212,6 +276,10 @@ def load_config() -> Dict[str, Any]:
         found = find_dlc()
         if found:
             cfg["dlc_dir"] = found
+    if "mods_dir" not in loaded or not isinstance(cfg.get("mods_dir"), str) or not cfg["mods_dir"].strip():
+        cfg["mods_dir"] = str(_get_active_root() / "mods")
+    cfg["enabled_mods"] = _sanitize_mod_list(cfg.get("enabled_mods"))
+    cfg["extra_mods"] = _sanitize_mod_list(cfg.get("extra_mods"))
     # Ensure language is initialized
     lang = cfg.get("language") or cfg.get("lang") or "en"
     if lang not in i18n.SUPPORTED_LANGUAGES:

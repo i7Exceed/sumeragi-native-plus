@@ -62,9 +62,7 @@ def prepare(game, out, sku='full', dlc_dir=None):
                  mounted_addons=[dict(label=l, title=t, source=s) for l, t, s in addons],
                  boot_attr=0)
     out.mkdir(parents=True,exist_ok=True)
-    blob = struct.pack('<8s6I', b'G3CONT02', {'full':3,'trial':1}[sku], *params, len(addons))
-    for label, _title, _source in addons:
-        blob += label.encode('ascii') + b'\0'
+    blob = struct.pack('<8s5I', b'G3CONT01', {'full':3,'trial':1}[sku], *params)
     (out/'content.bin').write_bytes(blob)
     (out/'content-profile.json').write_text(json.dumps(profile,indent=2)+'\n')
     print(f'AppContent profile: SKU={sku} (probe setting), user params={params}, add-ons={len(addons)}')

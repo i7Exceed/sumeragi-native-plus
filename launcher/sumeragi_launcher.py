@@ -24,7 +24,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Ensure launcher and scripts are in sys.path
@@ -96,6 +96,8 @@ from sumeragi_config import (
     find_game,
     load_config,
     read_ini,
+    resolve_enabled_mods,
+    resolve_mod_path,
     save_config,
     write_ini,
 )
@@ -153,6 +155,68 @@ if len(sys.argv) > 2 and sys.argv[1] == "--run-script":
 # ---------------------------------------------------------------------------
 # Main Application Shell
 # ---------------------------------------------------------------------------
+
+
+def build_mod_entries(
+    cfg: Dict[str, Any],
+    mods_dir: Optional[str | Path] = None,
+    extra_mods: Optional[List[str]] = None,
+    base: Optional[str | Path] = None,
+    update: Optional[str | Path] = None,
+    out: Optional[str | Path] = None,
+) -> List[Dict[str, Any]]:
+    """Builds the ordered mod list for the Mod Manager UI, preserving enabled_mods order."""
+    active_mods_dir = str(mods_dir if mods_dir is not None else (cfg.get("mods_dir") or (ROOT / "mods")))
+    extras = list(extra_mods if extra_mods is not None else cfg.get("extra_mods", []))
+    enabled_paths = [
+        resolve_mod_path(entry, active_mods_dir)
+        for entry in (cfg.get("enabled_mods") or [])
+        if isinstance(entry, str) and entry.strip()
+    ]
+    combined_extras = list(extras)
+    for ep in enabled_paths:
+        combined_extras.append(str(ep))
+
+    discovered = game_update.discover_mods(
+        active_mods_dir,
+        extra_mods=combined_extras,
+        base=base,
+        update=update,
+        out=out,
+    )
+    by_key: Dict[str, Dict[str, Any]] = {}
+    for item in discovered:
+        key = os.path.normcase(os.path.normpath(str(item["path"])))
+        by_key[key] = dict(item, enabled=False)
+
+    ordered: List[Dict[str, Any]] = []
+    used_keys: Set[str] = set()
+    for ep in enabled_paths:
+        resolved = ep.resolve() if ep.exists() else ep
+        key = os.path.normcase(os.path.normpath(str(resolved)))
+        if key in used_keys:
+            continue
+        if key in by_key:
+            entry = by_key[key]
+            entry["enabled"] = True
+            ordered.append(entry)
+            used_keys.add(key)
+
+    for item in discovered:
+        key = os.path.normcase(os.path.normpath(str(item["path"])))
+        if key not in used_keys:
+            ordered.append(by_key[key])
+            used_keys.add(key)
+    return ordered
+
+
+def move_mod_entry(entries: List[Dict[str, Any]], index: int, delta: int) -> bool:
+    """Moves a mod entry up (-1) or down (+1) in the list."""
+    target = index + delta
+    if not (0 <= index < len(entries) and 0 <= target < len(entries)):
+        return False
+    entries[index], entries[target] = entries[target], entries[index]
+    return True
 
 
 class Launcher(PagesMixin, tk.Tk):
@@ -418,14 +482,22 @@ class Launcher(PagesMixin, tk.Tk):
     # -----------------------------------------------------------------------
 
     def _cleanup_leftover_views(self):
-        if not OUT.is_dir():
-            return
-        for item in OUT.iterdir():
-            if item.is_dir() and item.name.startswith("game-update-"):
-                try:
-                    game_update.remove_view(item)
-                except Exception:
-                    pass
+        view_roots = [OUT]
+        game = self.cfg.get("game") if hasattr(self, "cfg") else None
+        if game:
+            try:
+                view_roots.append(Path(game).resolve().parent / ".sumeragi-overlay")
+            except OSError:
+                pass
+        for root_dir in view_roots:
+            if not root_dir.is_dir():
+                continue
+            for item in list(root_dir.iterdir()):
+                if item.is_dir() and item.name.startswith("game-update-"):
+                    try:
+                        game_update.remove_view(item)
+                    except Exception:
+                        pass
 
     def _ini(self):
         if not INI.exists():
@@ -620,6 +692,7 @@ class Launcher(PagesMixin, tk.Tk):
         game = Path(self.cfg["game"]) if self.cfg["game"] else None
         update_dir = Path(self.cfg["update_dir"]) if self.cfg.get("update_dir") else None
         dlc_dir = Path(self.cfg["dlc_dir"]) if self.cfg.get("dlc_dir") else None
+        enabled_mods = resolve_enabled_mods(self.cfg)
 
         exe = BIN / "sumeragi-core.exe"
         if not exe.is_file():
@@ -637,7 +710,7 @@ class Launcher(PagesMixin, tk.Tk):
                     break
 
         try:
-            game_update.validate_game(game, update_dir)
+            game_update.validate_game(game, update_dir, mods=enabled_mods, out=OUT)
             if dlc_dir:
                 base_title = game_title_id(game) or "CUSA01159"
                 dlc.discover_addons(dlc_dir, title_id=base_title)
@@ -654,22 +727,34 @@ class Launcher(PagesMixin, tk.Tk):
         self.busy = True
         self.play.config(state="disabled")
         self.pending = None
-        threading.Thread(target=self._prepare_then_launch, args=(game, update_dir, exe, dlc_dir), daemon=True).start()
+        threading.Thread(
+            target=self._prepare_then_launch,
+            args=(game, update_dir, exe, dlc_dir, enabled_mods),
+            daemon=True,
+        ).start()
         self.after(200, self._wait_prepare)
 
     def _progress(self, text: str):
         self.pending_text = text
 
-    def _prepare_then_launch(self, game: Optional[Path], update_dir: Optional[Path], exe: Path, dlc_dir: Optional[Path] = None):
+    def _prepare_then_launch(
+        self,
+        game: Optional[Path],
+        update_dir: Optional[Path],
+        exe: Path,
+        dlc_dir: Optional[Path] = None,
+        mods: Optional[List[Path]] = None,
+    ):
         self.pending_text = t("home.game_starting")
         error = None
         view = None
         effective_game = game
+        active_mods = list(mods) if mods is not None else resolve_enabled_mods(self.cfg)
 
-        if update_dir and game:
-            self.pending_text = "Preparing game update overlay…"
+        if (update_dir or active_mods) and game:
+            self.pending_text = t("home.preparing_overlay")
             try:
-                view = game_update.create_view(game, update_dir, OUT)
+                view = game_update.create_view(game, update_dir, OUT, mods=active_mods)
                 effective_game = view
             except (ValueError, OSError) as err:
                 self.pending = (str(err), None, None, [], "", None)
@@ -946,6 +1031,267 @@ class Launcher(PagesMixin, tk.Tk):
     def open_dlc_manager(self):
         self.show_page("dlc")
 
+    def open_mods_manager(self):
+        window = tk.Toplevel(self)
+        window.title(f"{BRAND} — {t('mods.title')}")
+        window.configure(bg=theme.BG_MAIN)
+        window.geometry("760x560")
+        window.minsize(680, 480)
+        window.transient(self)
+        window.grab_set()
+
+        root_frame = tk.Frame(window, bg=theme.BG_CARD, padx=18, pady=16, bd=1, relief="solid")
+        root_frame.pack(fill="both", expand=True, padx=14, pady=14)
+
+        tk.Label(root_frame, text=t("mods.title"), bg=theme.BG_CARD, fg=theme.ACCENT_GOLD, font=theme.FONT_HEADING).pack(anchor="w")
+        tk.Label(root_frame, text=t("mods.subtitle"), bg=theme.BG_CARD, fg=theme.TEXT_SECONDARY, font=theme.FONT_BODY, wraplength=700, justify="left").pack(anchor="w", pady=(2, 8))
+
+        # Mods root folder row
+        dir_row = tk.Frame(root_frame, bg=theme.BG_CARD)
+        dir_row.pack(fill="x", pady=(0, 8))
+        dir_row.columnconfigure(1, weight=1)
+
+        tk.Label(dir_row, text=t("mods.root_label"), bg=theme.BG_CARD, fg=theme.TEXT_PRIMARY, font=theme.FONT_BODY_BOLD).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        mods_dir_var = tk.StringVar(value=self.cfg.get("mods_dir") or str(ROOT / "mods"))
+        ttk.Entry(dir_row, textvariable=mods_dir_var).grid(row=0, column=1, sticky="ew", padx=(0, 6))
+
+        extra_mods: List[str] = list(self.cfg.get("extra_mods", []))
+        game_path = self.cfg.get("game") or None
+        update_path = self.cfg.get("update_dir") or None
+        entries: List[Dict[str, Any]] = build_mod_entries(
+            self.cfg,
+            mods_dir=mods_dir_var.get(),
+            extra_mods=extra_mods,
+            base=game_path,
+            update=update_path,
+            out=OUT,
+        )
+
+        # Overlay priority hint + count summary
+        hint_row = tk.Frame(root_frame, bg=theme.BG_ELEVATED, bd=1, relief="solid", padx=10, pady=6)
+        hint_row.pack(fill="x", pady=(0, 8))
+        tk.Label(hint_row, text=f"ℹ️ {t('mods.order_hint')}", bg=theme.BG_ELEVATED, fg=theme.TEXT_SECONDARY, font=theme.FONT_CAPTION).pack(side="left")
+        summary_lbl = tk.Label(hint_row, text="", bg=theme.ACCENT_GOLD_MUTED, fg=theme.ACCENT_GOLD, font=theme.FONT_BADGE, padx=8, pady=2)
+        summary_lbl.pack(side="right")
+
+        # Scrollable list container
+        list_outer = tk.Frame(root_frame, bg=theme.BG_INPUT, bd=1, relief="solid")
+        list_outer.pack(fill="both", expand=True, pady=(0, 10))
+
+        canvas = tk.Canvas(list_outer, bg=theme.BG_INPUT, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(list_outer, orient="vertical", command=canvas.yview)
+        list_inner = tk.Frame(canvas, bg=theme.BG_INPUT)
+        list_inner.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas_win = canvas.create_window((0, 0), window=list_inner, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_win, width=e.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True, padx=6, pady=6)
+        scrollbar.pack(side="right", fill="y", pady=6)
+
+        row_vars: List[tk.BooleanVar] = []
+
+        def update_summary():
+            enabled_count = sum(1 for item in entries if item["enabled"])
+            summary_lbl.config(text=t("mods.count_summary", enabled=enabled_count, total=len(entries)))
+
+        def render_list():
+            for child_w in list_inner.winfo_children():
+                child_w.destroy()
+            row_vars.clear()
+            update_summary()
+
+            if not entries:
+                empty_box = tk.Frame(list_inner, bg=theme.BG_INPUT, pady=36)
+                empty_box.pack(fill="both", expand=True)
+                tk.Label(empty_box, text=t("mods.empty_title"), bg=theme.BG_INPUT, fg=theme.ACCENT_GOLD, font=theme.FONT_HEADING).pack()
+                tk.Label(empty_box, text=t("mods.empty_desc"), bg=theme.BG_INPUT, fg=theme.TEXT_SECONDARY, font=theme.FONT_BODY, wraplength=540, justify="center").pack(pady=(6, 0))
+                return
+
+            enabled_rank = 0
+            show_reorder = len(entries) > 1
+            for idx, item in enumerate(entries):
+                if item["enabled"]:
+                    enabled_rank += 1
+                    rank_text = f"#{enabled_rank}"
+                    rank_bg, rank_fg = theme.ACCENT_GOLD_MUTED, theme.ACCENT_GOLD
+                else:
+                    rank_text = "—"
+                    rank_bg, rank_fg = theme.BG_ELEVATED, theme.TEXT_MUTED
+
+                row = tk.Frame(list_inner, bg=theme.BG_CARD, bd=1, relief="solid", padx=10, pady=8)
+                row.pack(fill="x", pady=3, padx=2)
+                row.columnconfigure(2, weight=1)
+
+                tk.Label(row, text=rank_text, bg=rank_bg, fg=rank_fg, font=theme.FONT_BADGE, width=4, pady=3).grid(row=0, column=0, rowspan=2, padx=(0, 8), sticky="w")
+
+                var = tk.BooleanVar(value=bool(item["enabled"]))
+                row_vars.append(var)
+
+                def on_toggle(i=idx, v=var):
+                    entries[i]["enabled"] = bool(v.get())
+                    render_list()
+
+                ttk.Checkbutton(row, variable=var, command=on_toggle).grid(row=0, column=1, rowspan=2, padx=(0, 6), sticky="w")
+
+                title_line = tk.Frame(row, bg=theme.BG_CARD)
+                title_line.grid(row=0, column=2, sticky="w")
+                tk.Label(title_line, text=item["name"], bg=theme.BG_CARD, fg=theme.TEXT_PRIMARY, font=theme.FONT_BODY_BOLD).pack(side="left")
+
+                meta_bits = []
+                if item.get("version"):
+                    meta_bits.append(f"v{item['version']}")
+                if item.get("author"):
+                    meta_bits.append(item["author"])
+                if meta_bits:
+                    tk.Label(title_line, text="  ·  " + " · ".join(meta_bits), bg=theme.BG_CARD, fg=theme.TEXT_SECONDARY, font=theme.FONT_CAPTION).pack(side="left")
+
+                if item.get("is_external"):
+                    tk.Label(title_line, text=t("mods.badge_external"), bg="#1e293b", fg="#93c5fd", font=theme.FONT_BADGE, padx=6, pady=1).pack(side="left", padx=(8, 0))
+                if not item.get("valid", True):
+                    tk.Label(title_line, text=t("mods.badge_invalid"), bg="#3B1C1C", fg=theme.COLOR_ERROR, font=theme.FONT_BADGE, padx=6, pady=1).pack(side="left", padx=(8, 0))
+
+                sub_text = item.get("error") if not item.get("valid", True) else (item.get("description") or str(item["path"]))
+                sub_fg = theme.COLOR_ERROR if not item.get("valid", True) else theme.TEXT_MUTED
+                tk.Label(row, text=sub_text, bg=theme.BG_CARD, fg=sub_fg, font=theme.FONT_CAPTION, anchor="w", justify="left", wraplength=440).grid(row=1, column=2, sticky="w")
+
+                ctrl_box = tk.Frame(row, bg=theme.BG_CARD)
+                ctrl_box.grid(row=0, column=3, rowspan=2, padx=(8, 0), sticky="e")
+
+                if show_reorder:
+                    up_btn = ttk.Button(
+                        ctrl_box,
+                        text=t("mods.btn_up"),
+                        style="Small.TButton",
+                        width=3,
+                        command=lambda i=idx: (move_mod_entry(entries, i, -1), render_list()),
+                    )
+                    if idx == 0:
+                        up_btn.state(["disabled"])
+                    up_btn.pack(side="left", padx=(0, 3))
+
+                    dn_btn = ttk.Button(
+                        ctrl_box,
+                        text=t("mods.btn_down"),
+                        style="Small.TButton",
+                        width=3,
+                        command=lambda i=idx: (move_mod_entry(entries, i, 1), render_list()),
+                    )
+                    if idx == len(entries) - 1:
+                        dn_btn.state(["disabled"])
+                    dn_btn.pack(side="left", padx=(0, 3))
+
+                if item.get("is_external"):
+                    def remove_external(i=idx):
+                        removed = entries.pop(i)
+                        rem_key = os.path.normcase(os.path.normpath(str(removed["path"])))
+                        extra_mods[:] = [
+                            x for x in extra_mods
+                            if os.path.normcase(os.path.normpath(str(Path(x).resolve() if Path(x).exists() else Path(x)))) != rem_key
+                        ]
+                        render_list()
+
+                    ttk.Button(ctrl_box, text=t("mods.btn_remove"), style="Small.TButton", width=3, command=remove_external).pack(side="left")
+
+        def refresh_mods():
+            current_enabled = [str(item["path"]) for item in entries if item["enabled"]]
+            temp_cfg = dict(self.cfg)
+            temp_cfg["mods_dir"] = mods_dir_var.get().strip() or str(ROOT / "mods")
+            temp_cfg["enabled_mods"] = current_enabled
+            temp_cfg["extra_mods"] = extra_mods
+            entries[:] = build_mod_entries(
+                temp_cfg,
+                mods_dir=temp_cfg["mods_dir"],
+                extra_mods=extra_mods,
+                base=game_path,
+                update=update_path,
+                out=OUT,
+            )
+            render_list()
+
+        def browse_mods_root():
+            picked = filedialog.askdirectory(initialdir=mods_dir_var.get() or str(ROOT), title=t("mods.select_root_title"), parent=window)
+            if picked:
+                mods_dir_var.set(os.path.normpath(picked))
+                refresh_mods()
+
+        def open_mods_folder():
+            p = Path(mods_dir_var.get().strip() or (ROOT / "mods"))
+            p.mkdir(parents=True, exist_ok=True)
+            if sys.platform == "win32":
+                os.startfile(p)
+
+        def add_mod_path(picked: str | Path) -> bool:
+            try:
+                resolved = game_update.validate_mod(picked, base=game_path, update=update_path, out=OUT)
+            except (ValueError, OSError) as err:
+                messagebox.showerror(t("mods.invalid_title"), str(err), parent=window)
+                return False
+            key = os.path.normcase(os.path.normpath(str(resolved)))
+            for item in entries:
+                if os.path.normcase(os.path.normpath(str(item["path"]))) == key:
+                    item["enabled"] = True
+                    item["valid"] = True
+                    item["error"] = None
+                    render_list()
+                    return True
+            root_mods = Path(mods_dir_var.get().strip() or (ROOT / "mods"))
+            if resolved.parent != (root_mods.resolve() if root_mods.exists() else root_mods):
+                extra_mods.append(str(resolved))
+            meta = game_update.read_mod_metadata(resolved)
+            entries.append({
+                "path": resolved,
+                "name": meta["name"],
+                "folder_name": resolved.name,
+                "order": meta["order"],
+                "description": meta["description"],
+                "author": meta["author"],
+                "version": meta["version"],
+                "has_manifest": meta["has_manifest"],
+                "valid": True,
+                "error": None,
+                "is_external": resolved.parent != (root_mods.resolve() if root_mods.exists() else root_mods),
+                "enabled": True,
+            })
+            render_list()
+            return True
+
+        def browse_add_mod():
+            picked = filedialog.askdirectory(initialdir=mods_dir_var.get() or str(ROOT), title=t("mods.select_folder_title"), parent=window)
+            if picked:
+                add_mod_path(picked)
+
+        ttk.Button(dir_row, text=t("common.browse"), style="Small.TButton", command=browse_mods_root).grid(row=0, column=2, padx=(0, 4))
+        ttk.Button(dir_row, text=t("mods.btn_open_folder"), style="Small.TButton", command=open_mods_folder).grid(row=0, column=3, padx=(0, 4))
+        ttk.Button(dir_row, text=t("common.refresh"), style="Small.TButton", command=refresh_mods).grid(row=0, column=4)
+
+        bottom_bar = tk.Frame(root_frame, bg=theme.BG_CARD)
+        bottom_bar.pack(fill="x")
+
+        ttk.Button(bottom_bar, text=t("mods.btn_add"), style="Small.TButton", command=browse_add_mod).pack(side="left")
+
+        def save_and_close():
+            self.cfg["mods_dir"] = mods_dir_var.get().strip() or str(ROOT / "mods")
+            self.cfg["extra_mods"] = list(dict.fromkeys(extra_mods))
+            self.cfg["enabled_mods"] = [str(item["path"]) for item in entries if item["enabled"]]
+            save_config(self.cfg)
+            self._refresh_all_statuses()
+            window.destroy()
+
+        ttk.Button(bottom_bar, text=t("common.cancel"), style="Small.TButton", command=window.destroy).pack(side="right")
+        ttk.Button(bottom_bar, text=t("common.save_apply"), style="Primary.TButton", command=save_and_close).pack(side="right", padx=(0, 8))
+
+        render_list()
+        window._mod_state = {  # type: ignore[attr-defined]
+            "entries": entries,
+            "mods_dir_var": mods_dir_var,
+            "extra_mods": extra_mods,
+            "render_list": render_list,
+            "refresh_mods": refresh_mods,
+            "add_mod_path": add_mod_path,
+            "save": save_and_close,
+        }
+        return window
+
     def open_captures(self):
         p = USER / "captures"
         p.mkdir(parents=True, exist_ok=True)
@@ -1208,6 +1554,12 @@ class Launcher(PagesMixin, tk.Tk):
             if not messagebox.askyesno(BRAND, t("dialog.stop_confirm_msg"), parent=self):
                 return
             self.on_stop()
+        if getattr(self, "update_view", None):
+            try:
+                game_update.remove_view(self.update_view)
+            except Exception:
+                pass
+            self.update_view = None
         self.destroy()
 
 

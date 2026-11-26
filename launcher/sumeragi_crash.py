@@ -188,7 +188,7 @@ class SumeragiCrashDialog(tk.Toplevel):
             text=f"{t('crash.exit_code')}: {hex_code} ({exit_code})",
             bg=theme.BG_CARD,
             fg=theme.TEXT_SECONDARY,
-            font=theme.FONT_SMALL,
+            font=theme.FONT_CAPTION,
         ).pack(side="right")
 
         tk.Label(
@@ -240,7 +240,7 @@ class SumeragiCrashDialog(tk.Toplevel):
             text=t("crash.log_tail"),
             bg=theme.BG_CARD,
             fg=theme.TEXT_SECONDARY,
-            font=theme.FONT_SMALL,
+            font=theme.FONT_CAPTION,
         ).pack(anchor="w", pady=(0, 4))
 
         self.txt = tk.Text(
